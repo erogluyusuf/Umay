@@ -1,0 +1,528 @@
+:root {
+    --primary: #1a73e8; 
+    --bg: #f8f9fa; 
+    --sidebar: #ffffff;
+    --border: #dadce0; 
+    --text: #202124; 
+    --online: #34a853; 
+    --dark-ui: #202124;
+    --accent: #3ddc84;
+    --danger: #ea4335;
+    --warning: #fbbc04;
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: var(--bg); overflow: hidden; color: var(--text); }
+
+.fing-layout { display: flex; height: 100vh; }
+
+/* --- SIDEBAR (SOL PANEL) --- */
+.sidebar { 
+    width: 350px; 
+    background: var(--sidebar); 
+    border-right: 1px solid var(--border); 
+    display: flex; 
+    flex-direction: column; 
+    height: 100vh;
+}
+
+.sidebar-header { padding: 25px 20px; background: var(--primary); color: white; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+.brand { font-size: 1.2rem; font-weight: bold; display: flex; align-items: center; gap: 10px; }
+.net-status { font-size: 0.75rem; display: flex; align-items: center; gap: 5px; margin-top: 5px; opacity: 0.9; }
+#status-dot { width: 8px; height: 8px; background: #ffc107; border-radius: 50%; }
+#status-dot.online { background: var(--accent); box-shadow: 0 0 8px var(--accent); }
+
+.devices-list { 
+    flex: 1; 
+    overflow-y: auto; 
+    display: flex;
+    flex-direction: column;
+    position: relative; 
+}
+
+.device-item { 
+    display: flex; 
+    align-items: center; 
+    padding: 15px 20px; 
+    border-bottom: 1px solid #f1f3f4; 
+    cursor: pointer; 
+    transition: all 0.2s ease; 
+}
+.device-item:hover { background: #f8f9fa; }
+.device-item.active { background: #e8f0fe; border-left: 4px solid var(--primary); }
+
+.icon-container {
+    width: 44px; height: 44px; background: #f1f3f4; border-radius: 10px;
+    display: flex; align-items: center; justify-content: center; margin-right: 15px; overflow: hidden;
+    flex-shrink: 0;
+}
+.dev-img-icon { width: 28px; height: 28px; object-fit: contain; animation: fadeIn 0.5s; }
+.dev-icon { font-size: 22px; color: #5f6368; }
+
+.dev-info { flex: 1; min-width: 0; }
+.dev-info .name { font-weight: 600; display: block; font-size: 13px; color: #3c4043; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dev-info .ip { font-size: 11px; color: #70757a; font-family: monospace; }
+.pkt-badge-mini { background: #e8f0fe; color: var(--primary); padding: 2px 8px; border-radius: 10px; font-size: 10px; font-weight: bold; }
+
+/* --- SIDEBAR FOOTER --- */
+.sidebar-footer { padding: 15px; border-top: 1px solid var(--border); background: white; }
+.btn-refresh-full {
+    width: 100%; padding: 12px; background: var(--primary); color: white;
+    border: none; border-radius: 8px; font-weight: 600; cursor: pointer;
+    display: flex; align-items: center; justify-content: center; gap: 10px; transition: 0.3s;
+}
+.btn-refresh-full:hover { background: #1557b0; box-shadow: 0 4px 12px rgba(26, 115, 232, 0.3); }
+.spinning { animation: fa-spin 2s linear infinite; }
+@keyframes fa-spin { to { transform: rotate(360deg); } }
+
+/* --- MAIN CONTENT (SAĞ PANEL) --- */
+.main-content { flex: 1; padding: 30px; overflow-y: auto; background: var(--bg); }
+.hidden { display: none !important; }
+.empty-state { text-align: center; margin-top: 15vh; color: #dadce0; }
+
+/* --- NETWORK OVERVIEW KARTLARI --- */
+.network-overview-card {
+    display: flex; background: white; padding: 20px; border-radius: 12px;
+    border: 1px solid var(--border); margin-bottom: 25px; justify-content: space-around;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.03);
+}
+.net-info-item { display: flex; align-items: center; gap: 15px; }
+.net-info-item i { font-size: 20px; background: #f1f3f4; padding: 12px; border-radius: 50%; width: 45px; text-align: center; }
+.net-label { display: block; font-size: 10px; color: #5f6368; text-transform: uppercase; font-weight: bold; letter-spacing: 0.5px; }
+.net-value { display: block; font-size: 14px; font-weight: 600; color: var(--text); }
+
+/* Tıklanabilir Ağ Haritası Kartı */
+.clickable-card { 
+    cursor: pointer; 
+    transition: transform 0.2s, background-color 0.2s; 
+    border-radius: 8px; 
+    padding: 5px; 
+}
+.clickable-card:hover { 
+    background: #f8f9fa; 
+    transform: scale(1.02); 
+}
+
+/* --- CİHAZ DETAY PANELİ --- */
+.header-card { background: white; border-radius: 12px; padding: 25px; display: flex; align-items: center; gap: 20px; border: 1px solid var(--border); margin-bottom: 20px; }
+.device-big-icon { width: 70px; height: 70px; background: #e8f0fe; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 35px; color: var(--primary); box-shadow: inset 0 2px 4px rgba(0,0,0,0.05); }
+.sub-info-row { display: flex; align-items: center; gap: 12px; margin-top: 5px; }
+.os-badge { background: #f1f3f4; color: #3c4043; padding: 5px 12px; border-radius: 20px; font-size: 11px; font-weight: 600; display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--border); }
+
+/* --- AKSİYON BUTONLARI (Header Card Sağ Taraf) --- */
+.action-badges-group { margin-left: auto; display: flex; gap: 10px; }
+
+.total-pkt-badge { 
+    text-align: center; background: var(--dark-ui); color: var(--accent); 
+    padding: 10px 15px; border-radius: 12px; min-width: 80px;
+    display: flex; flex-direction: column; justify-content: center;
+}
+.total-pkt-badge span { display: block; font-size: 20px; font-weight: bold; line-height: 1; }
+.total-pkt-badge small { font-size: 9px; text-transform: uppercase; opacity: 0.8; margin-top: 2px; }
+
+/* Kill Switch Özel Tasarımı */
+.badge-danger { background: #fce8e6; color: var(--danger); border: 1px solid #fad2cf; }
+.badge-danger span { font-size: 18px; }
+.clickable-badge { cursor: pointer; transition: 0.2s; }
+.clickable-badge:hover { transform: translateY(-2px); box-shadow: 0 4px 8px rgba(234, 67, 53, 0.2); }
+.kill-active { background: var(--danger) !important; color: white !important; animation: pulse-red 1.5s infinite; }
+
+/* Zafiyet (Vuln) Özel Tasarımı */
+.badge-warning { background: #fef7e0; color: #f9ab00; border: 1px solid #fcecc0; }
+
+@keyframes pulse-red {
+    0% { box-shadow: 0 0 0 0 rgba(234, 67, 53, 0.4); }
+    70% { box-shadow: 0 0 0 10px rgba(234, 67, 53, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(234, 67, 53, 0); }
+}
+
+/* --- PORTLAR VE SERVİSLER --- */
+.section-title-mini { margin: 20px 0 10px 5px; color: #5f6368; }
+.section-title-mini h4 { margin: 0; font-size: 12px; text-transform: uppercase; letter-spacing: 1px; display: flex; align-items: center; gap: 8px; }
+
+.port-container { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 25px; padding: 5px; }
+
+/* Genel Port Etiketi */
+.port-tag { 
+    background: #fff; 
+    color: #e67e22; /* Turuncu */
+    border: 1px solid #ffe0b2;
+    padding: 6px 14px; 
+    border-radius: 8px; 
+    font-size: 11px; 
+    font-weight: bold;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.02); 
+    transition: all 0.2s;
+    max-width: 100%; 
+    white-space: nowrap; 
+    overflow: hidden; 
+    text-overflow: ellipsis;
+    display: inline-flex; 
+    align-items: center;
+    text-decoration: none; /* Link alt çizgisini kaldır */
+    cursor: default;
+}
+
+/* Tıklanabilir (Link) Olan Port Etiketi */
+a.port-tag {
+    cursor: pointer;
+}
+
+a.port-tag:hover { 
+    background: #fff3e0; 
+    transform: translateY(-2px); 
+    box-shadow: 0 4px 8px rgba(230, 126, 34, 0.2); 
+    border-color: #ffcc80; 
+    color: #d84315;
+}
+
+/* Zafiyet Detay Kutusu */
+.vuln-container { margin-bottom: 20px; }
+.vuln-box {
+    background: #fef7e0; border-left: 4px solid #f9ab00; padding: 10px;
+    margin-bottom: 5px; font-size: 12px; color: #b45d06; border-radius: 4px;
+    display: flex; align-items: center; gap: 10px;
+}
+
+/* --- ANALİZ IZGARASI --- */
+.analysis-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 25px; }
+.analysis-card { background: white; border-radius: 12px; border: 1px solid var(--border); padding: 20px; min-height: 250px; }
+.ping-stats { display: flex; justify-content: space-around; margin-bottom: 15px; background: #f8f9fa; padding: 12px; border-radius: 10px; }
+.stat-item span { font-size: 9px; color: #70757a; display: block; text-align: center; font-weight: bold; }
+.stat-item p { margin: 0; font-weight: 800; font-size: 15px; color: var(--primary); text-align: center; }
+.chart-container { height: 140px; position: relative; }
+
+/* --- MIND MAP (TRACE) --- */
+.trace-map { display: flex; flex-direction: column; padding: 5px; position: relative; }
+.trace-step { display: flex; align-items: flex-start; position: relative; padding-bottom: 20px; }
+.trace-step::before { content: ''; position: absolute; left: 19px; top: 35px; height: 100%; width: 2px; background: #e0e0e0; z-index: 0; }
+.trace-step:last-child::before { display: none; }
+.trace-icon-box { width: 40px; height: 40px; border-radius: 50%; background: #fff; border: 2px solid var(--primary); display: flex; align-items: center; justify-content: center; z-index: 1; box-shadow: 0 2px 6px rgba(0,0,0,0.08); margin-right: 15px; flex-shrink: 0; }
+.trace-icon-box i { font-size: 16px; color: var(--primary); }
+.trace-step.target .trace-icon-box { border-color: var(--accent); background: #e8f5e9; }
+.trace-step.target .trace-icon-box i { color: #137333; }
+.trace-step.gateway .trace-icon-box { border-color: #fbbc04; }
+.trace-step.gateway .trace-icon-box i { color: #f9ab00; }
+.trace-info { background: #f8f9fa; padding: 10px 15px; border-radius: 10px; width: 100%; border: 1px solid #f1f3f4; }
+.trace-title { font-weight: 700; font-size: 13px; color: var(--text); display: block; }
+.trace-ip { font-size: 11px; color: #5f6368; font-family: monospace; }
+.trace-time { float: right; font-size: 11px; color: var(--primary); background: rgba(26, 115, 232, 0.1); padding: 3px 8px; border-radius: 6px; font-weight: bold; }
+
+/* --- TRAFİK LOGLARI --- */
+.traffic-section { background: white; border-radius: 12px; border: 1px solid var(--border); overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.02); }
+.section-title { padding: 15px 20px; background: #f8f9fa; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+
+.logs-container { height: 350px; overflow-y: auto; background: #fdfdfd; padding: 10px; }
+
+.log-row { 
+    padding: 12px 15px; 
+    border-radius: 10px;
+    margin-bottom: 8px;
+    background: white;
+    border: 1px solid #f1f3f4;
+    display: flex; 
+    align-items: center; 
+    gap: 15px; 
+    font-size: 13px; 
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+    text-decoration: none;
+    color: inherit;
+}
+
+.log-row:hover { 
+    transform: translateX(5px);
+    border-color: var(--primary);
+    box-shadow: 0 4px 12px rgba(26, 115, 232, 0.08);
+}
+
+.log-time { 
+    color: #9aa0a6; 
+    font-family: 'Consolas', monospace; 
+    font-size: 10px;
+    background: #f8f9fa;
+    padding: 3px 6px;
+    border-radius: 4px;
+}
+
+.log-dest-info { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+
+.log-domain { font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.log-action-hint { font-size: 10px; color: var(--primary); opacity: 0; transition: 0.2s; font-weight: 600; }
+.log-row:hover .log-action-hint { opacity: 1; }
+
+.site-mini-icon { 
+    width: 28px; height: 28px; border-radius: 6px; background: #fff;
+    padding: 2px; border: 1px solid #eee; flex-shrink: 0;
+}
+
+.proto-badge { font-size: 9px; padding: 2px 5px; border-radius: 4px; background: #e8f0fe; color: var(--primary); font-weight: bold; text-transform: uppercase; }
+
+/* --- BUTONLAR VE DİĞER --- */
+.btn-clear {
+    display: flex; align-items: center; gap: 8px; background: white; color: #d93025;
+    border: 1px solid #dadce0; padding: 8px 16px; border-radius: 20px; font-size: 12px;
+    font-weight: 600; cursor: pointer; transition: 0.2s;
+}
+.btn-clear:hover { background: #fce8e6; border-color: #d93025; }
+
+/* YÜKLEME EKRANI */
+.scan-loader-container {
+    position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    width: 100%; color: var(--accent); text-align: center; z-index: 5; pointer-events: none;
+}
+.radar-spinner {
+    width: 50px; height: 50px; border: 3px solid rgba(61, 220, 132, 0.1);
+    border-radius: 50%; border-top-color: var(--accent); border-left-color: var(--accent);
+    animation: spin 1s linear infinite; margin-bottom: 15px;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+/* Kaydırma Çubuğu */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #dadce0; border-radius: 10px; }
+::-webkit-scrollbar-thumb:hover { background: #bdc1c6; }
+/* --- VIS.JS CUSTOM TOOLTIP TASARIMI --- */
+
+/* Varsayılan Vis.js Tooltip Kutusunu Ezme */
+div.vis-tooltip {
+    background-color: white !important;
+    color: #333 !important;
+    border: 1px solid #dadce0 !important;
+    border-radius: 8px !important;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.15) !important;
+    padding: 0 !important; /* İç boşluğu biz yöneteceğiz */
+    font-family: 'Segoe UI', sans-serif !important;
+    font-size: 12px !important;
+    z-index: 9999 !important;
+    min-width: 200px;
+    overflow: hidden; /* Taşmaları gizle */
+}
+
+/* Bizim oluşturduğumuz iç yapı */
+.tt-container {
+    display: flex;
+    flex-direction: column;
+}
+
+.tt-header {
+    background: #f8f9fa;
+    padding: 10px 12px;
+    border-bottom: 1px solid #f1f3f4;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.tt-icon {
+    width: 24px;
+    height: 24px;
+    object-fit: contain;
+    background: white;
+    border-radius: 50%;
+    padding: 2px;
+    border: 1px solid #ddd;
+}
+
+.tt-title {
+    font-weight: 700;
+    font-size: 13px;
+    color: #202124;
+}
+
+.tt-body {
+    padding: 10px 12px;
+}
+
+.tt-row {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 4px;
+    font-size: 11px;
+}
+
+.tt-row:last-child { margin-bottom: 0; }
+
+.tt-label {
+    color: #5f6368;
+    font-weight: 600;
+}
+
+.tt-val {
+    color: #202124;
+    font-family: 'Consolas', monospace; /* IP ve MAC için */
+}
+
+.tt-val.vendor {
+    font-family: 'Segoe UI', sans-serif;
+    text-align: right;
+    max-width: 120px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+/* =========================================
+   MOBİL VE TABLET UYUMLULUĞU (RESPONSIVE)
+   ========================================= */
+
+/* --- TABLET (1024px ve altı) --- */
+@media screen and (max-width: 1024px) {
+    .fing-layout {
+        flex-direction: column; /* Yan yana değil alt alta olsun */
+        height: auto; /* Sabit yükseklik yerine içeriğe göre uzasın */
+        overflow: auto;
+    }
+
+    /* Sidebar'ı Üst Bar Haline Getir */
+    .sidebar {
+        width: 100%;
+        height: auto;
+        border-right: none;
+        border-bottom: 1px solid var(--border);
+        flex-shrink: 0;
+    }
+
+    .devices-list {
+        max-height: 250px; /* Listeyi sınırla, çok uzamasın */
+        overflow-y: auto;
+        border-bottom: 1px solid var(--border);
+    }
+
+    .main-content {
+        padding: 15px;
+        height: auto;
+        overflow: visible;
+    }
+
+    /* Network Kartlarını Sıkıştır */
+    .network-overview-card {
+        flex-wrap: wrap;
+        gap: 15px;
+        padding: 15px;
+    }
+    
+    .net-info-item {
+        flex: 1 1 45%; /* Kartlar ikişerli dizilsin */
+        min-width: 150px;
+    }
+}
+
+/* =========================================
+   MOBİL VE TABLET İÇİN KAYDIRMA DÜZELTMESİ
+   ========================================= */
+
+@media screen and (max-width: 1024px) {
+    /* 1. EN ÖNEMLİ KISIM: Body kilidini aç */
+    body {
+        overflow: auto !important; /* Sayfanın kaymasına izin ver */
+        height: auto !important;
+    }
+
+    /* 2. Ana kapsayıcıyı serbest bırak */
+    .fing-layout {
+        flex-direction: column;
+        height: auto !important; /* 100vh sınırını kaldır */
+        overflow: visible !important;
+    }
+
+    /* 3. Sidebar (Üst Menü) ayarları */
+    .sidebar {
+        width: 100%;
+        height: auto; /* Ekran boyu kadar uzamasın */
+        border-right: none;
+        border-bottom: 1px solid var(--border);
+        flex-shrink: 0;
+        position: relative; /* Sabit kalmasın */
+    }
+
+    .devices-list {
+        max-height: 250px; /* Listeyi sınırla, çok uzamasın */
+        overflow-y: auto;
+    }
+
+    /* 4. İçerik Alanı: Kaydırma çubuğunu serbest bırak */
+    .main-content {
+        height: auto !important;
+        overflow: visible !important; /* İçeriğin taşmasına izin ver */
+        padding: 15px;
+    }
+
+    /* Network Kartları Düzeni */
+    .network-overview-card {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 15px;
+    }
+}
+
+/* =========================================
+   HEADER + TRACE MOBİL DÜZENİ
+   ========================================= */
+
+@media screen and (max-width: 768px) {
+
+    /* HEADER CARD ALT ALTA DİZİLSİN */
+    .header-card {
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+        gap: 15px;
+    }
+
+    .device-main-info {
+        width: 100%;
+    }
+
+    .sub-info-row {
+        justify-content: center;
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+
+    /* ACTION BADGELER ORTALANSIN */
+    .action-badges-group {
+        margin-left: 0;
+        width: 100%;
+        justify-content: center;
+        flex-wrap: wrap;
+        gap: 10px;
+    }
+
+    .total-pkt-badge {
+        min-width: 70px;
+        padding: 8px 10px;
+    }
+
+    /* ANALYSIS GRID TEK SÜTUN OLSUN */
+    .analysis-grid {
+        grid-template-columns: 1fr;
+    }
+
+    /* TRACE KARTI HEADER'IN ALTINA GELSİN */
+    .analysis-card {
+        margin-top: 15px;
+    }
+
+    /* TRACE MAP SIKIŞMASIN */
+    .trace-map {
+        padding: 0;
+    }
+
+    .trace-step {
+        padding-bottom: 15px;
+    }
+
+    .trace-info {
+        font-size: 12px;
+    }
+
+    /* Ping süresi sağa yapışmasın */
+    .trace-time {
+        float: none;
+        display: inline-block;
+        margin-bottom: 5px;
+    }
+
+}

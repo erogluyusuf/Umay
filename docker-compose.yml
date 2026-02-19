@@ -1,0 +1,71 @@
+services:
+  # --- VERİTABANI (PostgreSQL) ---
+  db:
+    image: postgres:15-alpine
+    container_name: umay_db
+    environment:
+      - POSTGRES_USER=umay_admin
+      - POSTGRES_PASSWORD=umay_password123
+      - POSTGRES_DB=umay_analytics
+    volumes:
+      - ./server_linux/data/postgres:/var/lib/postgresql/data
+    ports:
+      - "5433:5432"
+    restart: always
+    # --- YENİ: Veritabanının hazır olup olmadığını test et ---
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U umay_admin -d umay_analytics"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # --- UMAY ANALİZ SUNUCUSU ---
+  server:
+    build: ./server_linux
+    container_name: umay_server
+    network_mode: "host"
+    depends_on:
+      db:
+        condition: service_healthy # --- YENİ: Veritabanı "healthy" (hazır) olunca başla ---
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    volumes:
+      - ./server_linux/logs:/app/logs
+      - ./server_linux/data:/app/data
+      - ./server_linux:/app
+    environment:
+      - PYTHONUNBUFFERED=1
+      - DATABASE_URL=postgresql://umay_admin:umay_password123@localhost:5433/umay_analytics
+      - UMAY_ENABLE_DNS=${UMAY_ENABLE_DNS:-false}
+      - UMAY_REMOTE_MODE=${UMAY_REMOTE_MODE:-false}
+    env_file:
+      - ./server_linux/.env
+    restart: always
+
+  # --- WIREGUARD VPN ---
+  vpn:
+    profiles:
+      - vpn_aktif
+    image: linuxserver/wireguard
+    container_name: umay_vpn
+    cap_add:
+      - NET_ADMIN
+      - SYS_MODULE
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Europe/Istanbul
+      - SERVERURL=${EXTERNAL_IP:-127.0.0.1}
+      - SERVERPORT=51820
+      - PEERS=telefon1
+      - NODNS=true
+      - PEERDNS=127.0.0.1
+      - INTERNAL_CONTROL_CONFIGS=true
+    volumes:
+      - ./vpn_config:/config
+      - /lib/modules:/lib/modules
+    ports:
+      - 51820:51820/udp
+    network_mode: "host"
+    restart: unless-stopped

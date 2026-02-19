@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Umay | Network Intelligence</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script type="text/javascript" src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <div class="fing-layout">
+        
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <div class="brand">
+                    <i class="fas fa-shield-halved"></i>
+                    <span>UMAY</span>
+                </div>
+                <div class="net-status">
+                    <span id="status-dot"></span> <span id="status-text">Bağlantı Kuruluyor...</span>
+                </div>
+            </div>
+            
+            <div id="devices-list" class="devices-list">
+                <div id="scan-loader" class="scan-loader-container">
+                    <div class="radar-spinner"></div>
+                    <p>Cihazlar Yükleniyor...</p>
+                </div>
+            </div>
+
+            <div class="sidebar-footer">
+                <button id="refresh-net-btn" class="btn-refresh-full">
+                    <i class="fas fa-sync-alt"></i> Ağı Yenile
+                </button>
+            </div>
+        </aside>
+
+        <main class="main-content">
+            
+            <div class="network-overview-card">
+                <div class="net-info-item">
+                    <i class="fas fa-globe-europe" style="color:#1a73e8;"></i>
+                    <div>
+                        <span class="net-label">Servis Sağlayıcı</span>
+                        <span id="net-isp" class="net-value">Yükleniyor...</span>
+                    </div>
+                </div>
+                <div class="net-info-item">
+                    <i class="fas fa-map-marker-alt" style="color:#ea4335;"></i>
+                    <div>
+                        <span class="net-label">Konum</span>
+                        <span id="net-location" class="net-value">...</span>
+                    </div>
+                </div>
+                <div class="net-info-item">
+                    <i class="fas fa-fingerprint" style="color:#fbbc04;"></i>
+                    <div>
+                        <span class="net-label">Dış IP</span>
+                        <span id="net-public-ip" class="net-value">...</span>
+                    </div>
+                </div>
+                <div class="net-info-item clickable-card" onclick="showTopologyPanel()">
+                    <i class="fas fa-project-diagram" style="color:#34a853; background:#e6f4ea;"></i>
+                    <div>
+                        <span class="net-label">Ağ Haritası</span>
+                        <span class="net-value">Görüntüle</span>
+                    </div>
+                </div>
+            </div>
+
+            <div id="no-selection" class="empty-state">
+                <i class="fas fa-radar" style="font-size: 80px; color: #dadce0; margin-bottom: 20px;"></i>
+                <h3>Detaylı Analiz İçin Cihaz Seçin</h3>
+                <p>Cihazların işletim sistemini, marka bilgilerini ve canlı trafiğini görmek için soldan bir seçim yapın.</p>
+            </div>
+
+            <div id="topology-panel" class="panel-content hidden" style="height: calc(100vh - 200px);">
+                <div class="section-title-mini">
+                    <h4><i class="fas fa-network-wired"></i> CANLI AĞ TOPOLOJİSİ</h4>
+                </div>
+                <div id="mynetwork" style="width: 100%; height: 100%; border: 1px solid #dadce0; border-radius: 12px; background: #fff;"></div>
+            </div>
+
+            <div id="detail-panel" class="panel-content hidden">
+                
+                <div class="header-card">
+                    <div id="det-icon-box" class="device-big-icon">
+                        <i class="fas fa-laptop"></i>
+                    </div>
+                    <div class="device-main-info">
+                        <h1 id="det-name">Cihaz Adı</h1>
+                        <div class="sub-info-row">
+                            <p id="det-ip">0.0.0.0 | MAC</p>
+                            <span id="det-os" class="os-badge"><i class="fab fa-linux"></i> Analiz Ediliyor...</span>
+                        </div>
+                    </div>
+                    
+                    <div class="action-badges-group">
+                        <div class="total-pkt-badge">
+                            <span id="det-count">0</span>
+                            <small>Paket</small>
+                        </div>
+                        
+                        <div id="badge-vuln" class="total-pkt-badge badge-warning hidden">
+                            <span id="det-vuln-count">0</span>
+                            <small>Zafiyet</small>
+                        </div>
+
+                        <div id="btn-kill" class="total-pkt-badge badge-danger clickable-badge" onclick="toggleKill()">
+                            <span><i class="fas fa-power-off"></i></span>
+                            <small>Kes</small>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="section-title-mini">
+                    <h4><i class="fas fa-plug"></i> Açık Portlar ve Servisler</h4>
+                </div>
+                <div id="det-ports" class="port-container">
+                    </div>
+
+                <div id="det-vulns" class="vuln-container hidden"></div>
+
+                <div class="analysis-grid">
+                    <div class="analysis-card">
+                        <div class="ping-stats">
+                            <div class="stat-item"><span>ORTALAMA</span><p id="p-avg">0 ms</p></div>
+                            <div class="stat-item"><span>MAKSİMUM</span><p id="p-max">0 ms</p></div> 
+                            <div class="stat-item"><span>JITTER</span><p id="p-std">0.00</p></div> 
+                        </div>
+                        <div class="chart-container">
+                            <canvas id="pingChart"></canvas>
+                        </div>
+                    </div>
+
+                    <div class="analysis-card">
+                        <div id="trace-list" class="trace-map"></div>
+                    </div>
+                </div>
+
+                <div class="traffic-section">
+                    <div class="section-title">
+                        <h3><i class="fas fa-wave-square"></i> Canlı Ağ Trafiği</h3>
+                        <button onclick="clearLogs()" class="btn-clear">
+                            <i class="fas fa-trash-can"></i> Temizle
+                        </button>
+                    </div>
+                    <div id="logs" class="logs-container"></div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        function showTopologyPanel() {
+            // Panelleri Yönet
+            document.getElementById('no-selection').classList.add('hidden');
+            document.getElementById('detail-panel').classList.add('hidden');
+            document.getElementById('topology-panel').classList.remove('hidden');
+            
+            // Sidebar seçimini kaldır (Görsel olarak)
+            document.querySelectorAll('.device-item').forEach(e => e.classList.remove('active'));
+            
+            // Vis.js haritasını ekrana oturt
+            if(window.network) window.network.fit();
+        }
+
+        // Kill Switch Toggle Fonksiyonu (JS dosyasındaki fonksiyonu tetikler)
+        // script.js içindeki toggleKill() fonksiyonu zaten global scope'ta olduğu için buradan çağrılabilir.
+    </script>
+    <script src="/static/script.js"></script>
+</body>
+</html>

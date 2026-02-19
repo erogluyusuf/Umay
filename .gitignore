@@ -1,0 +1,51 @@
+# --- Python & Backend ---
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+env/
+.env
+*.log
+server_linux/logs/
+server_linux/data/devices.json
+
+# --- YENİ: PostgreSQL Veri Klasörü (Kritik!) ---
+# Kendi veritabanı dosyalarını asla GitHub'a göndermemelisin
+server_linux/data/postgres/
+
+# --- Flutter & Mobile ---
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.pub-cache/
+.pub/
+build/
+ios/.generated/
+# Hassas Flutter ayarları
+android/app/src/main/res/values/strings.xml
+
+# --- VPN & Network ---
+# Başkalarının senin VPN anahtarlarını görmemesi için
+vpn_config/
+/etc/resolv.conf.backup_umay
+
+# --- Docker & OS ---
+.docker/
+*.tar
+*.db
+*.sqlite3
+data/
+.DS_Store
+.DS_Store?
+.AppleDouble
+.LSOverride
+Icon?
+._*
+Thumbs.db
+desktop.ini
+
+# --- IDEs ---
+.vscode/
+.idea/
+*.swp
+*.swo
