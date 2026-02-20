@@ -1,15 +1,30 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'views/login_page.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // .env dosyasını sisteme yüklüyoruz
+  SystemChrome.setSystemUIOverlayStyle(
+    const SystemUiOverlayStyle(
+      statusBarColor: Colors.transparent,
+      statusBarIconBrightness: Brightness.light,
+      systemNavigationBarColor: Color(0xFF0D1117),
+      systemNavigationBarIconBrightness: Brightness.light,
+    ),
+  );
+
+  await SystemChrome.setPreferredOrientations([
+    DeviceOrientation.portraitUp,
+    DeviceOrientation.portraitDown,
+  ]);
+
   try {
     await dotenv.load(fileName: ".env");
+    print("✅ BİLGİ: .env dosyası başarıyla yüklendi.");
   } catch (e) {
-    print("Hata: .env dosyası bulunamadı!");
+    print("❌ KRİTİK HATA: .env dosyası bulunamadı! Detay: $e");
   }
 
   runApp(const UmayApp());
@@ -26,9 +41,19 @@ class UmayApp extends StatelessWidget {
       theme: ThemeData(
         useMaterial3: true,
         brightness: Brightness.dark,
+        scaffoldBackgroundColor: const Color(0xFF0D1117),
+        colorScheme: const ColorScheme.dark(
+          primary: Colors.blueAccent,
+          secondary: Colors.cyanAccent,
+          surface: Color(0xFF161B22),
+        ),
         fontFamily: 'Roboto',
+        appBarTheme: const AppBarTheme(
+          backgroundColor: Color(0xFF0D1117),
+          elevation: 0,
+          centerTitle: true,
+        ),
       ),
-      // DÜZELTME: const kaldırıldı çünkü LoginPage içinde dinamik nesneler var.
       home: LoginPage(),
     );
   }

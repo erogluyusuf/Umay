@@ -27,12 +27,12 @@ class DevicesPage extends StatelessWidget {
         children: [
           _buildNetworkInfoCards(),
           const SizedBox(height: 10),
-          
+
           const Padding(
             padding: EdgeInsets.symmetric(horizontal: 20, vertical: 10),
             child: Text("Active Devices", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)),
           ),
-          
+
           Expanded(
             child: ListView.builder(
               padding: const EdgeInsets.only(left: 20, right: 20, bottom: 120),
@@ -61,7 +61,6 @@ class DevicesPage extends StatelessWidget {
     );
   }
 
-  // GÖRSELDEN ESİNLENİLEN KOYU BUZLU CAM
   Widget _buildGlassInfoCard({required IconData icon, required String title, required String value}) {
     return Container(
       width: 155,
@@ -70,13 +69,13 @@ class DevicesPage extends StatelessWidget {
       child: ClipRRect(
         borderRadius: BorderRadius.circular(24),
         child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20), 
+          filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
           child: Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: Colors.black.withOpacity(0.15), // Beyazı okutmak için hafif koyu cam
+              color: Colors.black.withOpacity(0.15),
               borderRadius: BorderRadius.circular(24),
-              border: Border.all(color: Colors.white.withOpacity(0.2), width: 1.5), 
+              border: Border.all(color: Colors.white.withOpacity(0.2), width: 1.5),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,

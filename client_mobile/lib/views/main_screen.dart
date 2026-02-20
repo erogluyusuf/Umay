@@ -3,7 +3,10 @@ import 'devices_page.dart';
 import 'topology_page.dart';
 
 class MainScreen extends StatefulWidget {
-  const MainScreen({super.key});
+  // YENİ: VPN Config'i burası devraldı
+  final String vpnConfig;
+
+  const MainScreen({super.key, required this.vpnConfig});
 
   @override
   State<MainScreen> createState() => _MainScreenState();
@@ -11,7 +14,7 @@ class MainScreen extends StatefulWidget {
 
 class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateMixin {
   int _currentIndex = 0;
-  
+
   late AnimationController _bgController;
   late Animation<Alignment> _topAlignmentAnimation;
   late Animation<Alignment> _bottomAlignmentAnimation;
@@ -24,11 +27,10 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
   @override
   void initState() {
     super.initState();
-    // HIZLANDIRILDI: 10 saniyeden 5 saniyeye düşürüldü
     _bgController = AnimationController(
-      duration: const Duration(seconds: 5), 
+      duration: const Duration(seconds: 5),
       vsync: this,
-    )..repeat(reverse: true); 
+    )..repeat(reverse: true);
 
     _topAlignmentAnimation = Tween<Alignment>(
       begin: Alignment.topLeft,
@@ -60,12 +62,11 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
               gradient: LinearGradient(
                 begin: _topAlignmentAnimation.value,
                 end: _bottomAlignmentAnimation.value,
-                // BEYAZ KISIM AZALTILDI: Mavilere %70 alan verildi
-                stops: const [0.0, 0.7, 1.0], 
+                stops: const [0.0, 0.7, 1.0],
                 colors: const [
-                  Color(0xFF305282), 
-                  Color(0xFF98AFC7), 
-                  Color(0xFFE9ECEF), 
+                  Color(0xFF305282),
+                  Color(0xFF98AFC7),
+                  Color(0xFFE9ECEF),
                 ],
               ),
             ),
@@ -76,7 +77,7 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
                     duration: const Duration(milliseconds: 400),
                     child: _pages[_currentIndex],
                   ),
-                  
+
                   Align(
                     alignment: Alignment.bottomCenter,
                     child: Padding(
@@ -97,7 +98,7 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
   }
 
   Widget _buildLiquidBottomBar(double barWidth) {
-    final innerWidth = barWidth - 2; 
+    final innerWidth = barWidth - 2;
     final itemWidth = innerWidth / 2;
 
     return Container(
@@ -105,7 +106,7 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
       decoration: BoxDecoration(
         color: const Color(0xFF1E293B).withOpacity(0.9),
         borderRadius: BorderRadius.circular(35),
-        border: Border.all(color: Colors.white.withOpacity(0.15), width: 1), 
+        border: Border.all(color: Colors.white.withOpacity(0.15), width: 1),
         boxShadow: [
           BoxShadow(color: Colors.black.withOpacity(0.3), blurRadius: 20, offset: const Offset(0, 10)),
         ],
@@ -117,16 +118,16 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
             curve: Curves.easeInOut,
             top: 6,
             bottom: 6,
-            left: (_currentIndex * itemWidth) + 6, 
-            width: itemWidth - 12, 
+            left: (_currentIndex * itemWidth) + 6,
+            width: itemWidth - 12,
             child: Container(
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(30),
-                color: const Color(0xFF305282).withOpacity(0.6), 
+                color: const Color(0xFF305282).withOpacity(0.6),
               ),
             ),
           ),
-          
+
           Row(
             children: [
               _buildNavItem(Icons.format_list_bulleted_rounded, "Devices", 0, itemWidth),
@@ -140,8 +141,8 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
 
   Widget _buildNavItem(IconData icon, String label, int index, double itemWidth) {
     final isSelected = _currentIndex == index;
-    final color = isSelected ? Colors.white : Colors.grey.shade400; 
-    
+    final color = isSelected ? Colors.white : Colors.grey.shade400;
+
     return GestureDetector(
       onTap: () {
         setState(() {
@@ -149,8 +150,8 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
         });
       },
       child: Container(
-        width: itemWidth, 
-        color: Colors.transparent, 
+        width: itemWidth,
+        color: Colors.transparent,
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
@@ -159,9 +160,9 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
             Text(
               label,
               style: TextStyle(
-                color: color, 
-                fontSize: 12, 
-                fontWeight: isSelected ? FontWeight.bold : FontWeight.w500
+                  color: color,
+                  fontSize: 12,
+                  fontWeight: isSelected ? FontWeight.bold : FontWeight.w500
               ),
             ),
           ],

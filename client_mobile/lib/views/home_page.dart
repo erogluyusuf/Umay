@@ -6,7 +6,7 @@ class HomePage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ListView(
-      padding: const EdgeInsets.only(top: 20, bottom: 100), 
+      padding: const EdgeInsets.only(top: 20, bottom: 100),
       children: [
         _buildHeader(),
         const SizedBox(height: 20),

@@ -1,15 +1,17 @@
-import os  # Yeni eklendi
-import subprocess  # Yeni eklendi
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request, HTTPException # HTTPException eklendi
+import os
+import subprocess
+import traceback  # Hataları detaylı görmek için eklendi
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request, HTTPException
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from pydantic import BaseModel # Yeni eklendi
+from pydantic import BaseModel
 import threading
 import asyncio
 import json
 import uvicorn
 import logging
 import time
+from contextlib import asynccontextmanager # Startup hatasını çözen yeni kütüphane
 from sniffer import UmaySniffer
 
 # --- Veritabanı Modülleri ---
@@ -17,34 +19,24 @@ from core.database import init_db, engine
 from sqlmodel import Session, select
 from schemas.db_models import Device, TrafficLog
 
-# --- YENİ: MOBİL KAYIT MODELİ ---
+# --- MOBİL KAYIT MODELİ ---
 class RegisterDevice(BaseModel):
     email: str
     device_name: str
 
-# FastAPI Uygulaması
-app = FastAPI()
-
-# Statik Dosyalar
-app.mount("/static", StaticFiles(directory="static"), name="static")
-
-# HTML Template Yolu
-templates = Jinja2Templates(directory="templates")
-
 # Global Değişkenler
 global_sniffer = None
-main_event_loop = None  # Thread'lerden ana döngüye erişmek için
+main_event_loop = None
 
-# Log temizliği
-logging.getLogger("uvicorn.error").setLevel(logging.WARNING)
+# Log temizliği (Info seviyesini açıyoruz ki istekleri görelim)
+logging.getLogger("uvicorn.access").setLevel(logging.INFO)
 
-# --- UYGULAMA BAŞLANGICINDA ANA DÖNGÜYÜ VE VERİTABANINI YAKALA ---
-@app.on_event("startup")
-async def startup_event():
+# --- YENİ MİMARİ: UYGULAMA BAŞLANGICI VE BİTİŞİ ---
+@asynccontextmanager
+async def lifespan(app: FastAPI):
     global main_event_loop
     main_event_loop = asyncio.get_running_loop()
     
-    # 1. Önce PostgreSQL Tablolarını Otomatik Oluştur
     print("[*] Veritabanı motoru ısınıyor (PostgreSQL)...")
     try:
         init_db()
@@ -52,42 +44,95 @@ async def startup_event():
     except Exception as e:
         print(f"[!] Veritabanı bağlantı hatası: {e}")
         
-    # 2. Tablolar oluştuktan SONRA Sniffer'ı başlat
     print("[*] Sniffer (Ağ Dinleyici) arka planda başlatılıyor...")
     threading.Thread(target=start_sniffer_background, daemon=True).start()
+    
+    yield # Uygulama burada çalışır
 
-# --- YENİ: MOBİL KAYIT ENDPOINT'İ (Mevcut yapıya eklendi) ---
+# FastAPI Uygulaması
+app = FastAPI(lifespan=lifespan)
+
+# Statik Dosyalar ve Template'ler
+app.mount("/static", StaticFiles(directory="static"), name="static")
+templates = Jinja2Templates(directory="templates")
+
+
+# --- MOBİL KAYIT ENDPOINT'İ (AKILLI KAYIT & GÜNCELLEME) ---
 @app.post("/api/v1/register-device")
 async def register_device(data: RegisterDevice):
     try:
-        # 1. WireGuard Anahtarlarını Üret
-        priv_key = subprocess.getoutput("wg genkey")
+        print(f"\n{'='*40}")
+        print(f"[*] MOBİLDEN İSTEK GELDİ! Email: {data.email}")
         
-        # 2. vpn_config/templates/peer.conf şablonunu oku
+        # 1. WireGuard Anahtarlarını Üret
+        print("[*] WireGuard anahtarları üretiliyor...")
+        priv_key = subprocess.getoutput("wg genkey")
+        if "not found" in priv_key:
+            raise Exception("wg komutu Docker içinde bulunamadı!")
+        print("[+] Anahtar üretildi.")
+
+        # 2. Şablonu oku
         template_path = "vpn_config/templates/peer.conf"
+        client_config = ""
+        
         if not os.path.exists(template_path):
-            raise HTTPException(status_code=500, detail="VPN Şablonu (peer.conf) bulunamadı!")
+            print(f"[-] UYARI: {template_path} bulunamadı! (Docker klasör erişimi yok)")
+            print("[*] Yedek (Fallback) WireGuard konfigürasyonu oluşturuluyor...")
+            client_config = f"""[Interface]
+PrivateKey = {priv_key}
+Address = 10.13.13.5/32
+DNS = 127.0.0.1
 
-        with open(template_path, 'r') as f:
-            template_content = f.read()
+[Peer]
+PublicKey = LUTFEN_SUNUCU_PUBLIC_KEY_GIRIN
+Endpoint = api.umaysentinel.local:51820
+AllowedIPs = 0.0.0.0/0, ::/0
+PersistentKeepalive = 25
+"""
+        else:
+            with open(template_path, 'r') as f:
+                template_content = f.read()
+            client_config = template_content.replace("${PRIVATE_KEY}", priv_key)
+            client_config = client_config.replace("${CLIENT_IP}", "10.13.13.5/32") 
+            print("[+] VPN Şablonu başarıyla dolduruldu.")
 
-        # 3. Şablonu doldur
-        client_config = template_content.replace("${PRIVATE_KEY}", priv_key)
-        client_config = client_config.replace("${CLIENT_IP}", "10.0.0.5/32") 
-
-        # 4. Cihazı SQLModel üzerinden veritabanına işle
+        # 3. Cihazı SQLModel üzerinden veritabanına işle (TÜM HATALAR TEMİZLENDİ)
+        print("[*] Veritabanı kontrol ediliyor...")
         with Session(engine) as session:
-            db_device = Device(
-                name=data.device_name, 
-                mac_address=f"VPN-{data.email[:8]}", # Unique tanımlayıcı
-                is_online=True
-            )
-            session.add(db_device)
+            mac_id = f"VPN-{data.email[:8]}"
+            
+            # Cihaz zaten var mı kontrol et
+            existing_device = session.exec(select(Device).where(Device.mac_address == mac_id)).first()
+            
+            if existing_device:
+                print(f"[+] Cihaz zaten kayıtlı! (ID: {existing_device.id}). Güncelleniyor...")
+                existing_device.device_name = data.device_name # Sadece ismi güncelliyoruz
+                session.add(existing_device)
+            else:
+                print("[*] Yeni cihaz bulunamadı, sisteme ekleniyor...")
+                new_device = Device(
+                    node_id=1,
+                    device_name=data.device_name,
+                    mac_address=mac_id,
+                    brand="Mobile VPN",
+                    is_managed=True
+                )
+                session.add(new_device)
+                
             session.commit()
+            
+        print("[+] Veritabanı işlemi BAŞARILI!")
+        print(f"{'='*40}\n")
 
         return {"status": "success", "config": client_config}
+    
     except Exception as e:
+        print("\n" + "!"*50)
+        print(f"[!!!] SUNUCU ÇÖKTÜ (500 HATASI): {str(e)}")
+        traceback.print_exc() 
+        print("!"*50 + "\n")
         raise HTTPException(status_code=500, detail=str(e))
+
 
 # --- WEBSOCKET YÖNETİCİSİ ---
 class ConnectionManager:
@@ -104,10 +149,8 @@ class ConnectionManager:
 
     async def broadcast(self, data: dict):
         if not self.active_connections: return
-        
         message = json.dumps(data)
         to_remove = []
-        
         for connection in self.active_connections:
             try:
                 if connection.client_state.name == "CONNECTED":
@@ -116,39 +159,32 @@ class ConnectionManager:
                     to_remove.append(connection)
             except:
                 to_remove.append(connection)
-        
         for conn in to_remove:
             self.disconnect(conn)
 
 manager = ConnectionManager()
 
-# --- SNIFFER CALLBACK (GÜVENLİ İLETİŞİM) ---
 def send_to_dashboard(data):
     if main_event_loop and manager.active_connections:
         asyncio.run_coroutine_threadsafe(manager.broadcast(data), main_event_loop)
 
-# --- ARKA PLAN ÇALIŞTIRICI ---
 def start_sniffer_background():
     global global_sniffer
     global_sniffer = UmaySniffer(callback=send_to_dashboard)
     global_sniffer.start()
 
-# --- HTTP ENDPOINTS ---
+# --- HTTP VE WEBSOCKET ENDPOINTLERİ ---
 @app.get("/")
 async def get_dashboard(request: Request):
     return templates.TemplateResponse("index.html", {"request": request})
 
-# --- WEBSOCKET ENDPOINT ---
 @app.websocket("/ws/traffic")
 async def websocket_endpoint(websocket: WebSocket):
     await manager.connect(websocket)
-    
     if global_sniffer:
-        # 1. Ağ Bilgilerini Gönder
         if global_sniffer.network_info.get("public_ip") != "Yükleniyor...":
             await websocket.send_json({"type": "network_info", "data": global_sniffer.network_info})
         
-        # 2. Hafızadaki Cihazları Gönder
         if hasattr(global_sniffer, 'discovered_devices') and global_sniffer.discovered_devices:
             for ip, dev in global_sniffer.discovered_devices.items():
                 await websocket.send_json({
@@ -164,35 +200,25 @@ async def websocket_endpoint(websocket: WebSocket):
                     "timestamp": dev.get('last_seen', 0)
                 })
 
-            # --- YENİ: SAYFA YENİLENDİĞİNDE GEÇMİŞ TRAFİĞİ SQL'DEN GETİR ---
             try:
                 with Session(engine) as session:
-                    # SQL'den son 150 trafiği çek (En yeni en üstte gelir)
                     logs = session.exec(select(TrafficLog).order_by(TrafficLog.id.desc()).limit(150)).all()
                     devices_db = session.exec(select(Device)).all()
-                    
-                    # Hangi cihaz ID'si hangi MAC adresine ait bul
                     id_to_mac = {d.id: d.mac_address for d in devices_db}
-                    
-                    # Hangi MAC adresi şu an hangi IP'de oturuyor bul (Canlı hafızadan)
                     mac_to_ip = {v.get('mac'): k for k, v in global_sniffer.discovered_devices.items() if v.get('mac')}
                     
-                    # Ekranda kronolojik görünmesi için ters çevirip yolla (Eski -> Yeni)
                     for log in reversed(logs):
                         mac = id_to_mac.get(log.device_id)
                         if mac and mac in mac_to_ip:
                             ip = mac_to_ip[mac]
-                            # SQL'deki datetime verisini Unix Timestamp (saniye) formatına çevir
                             ts = log.timestamp.timestamp() if hasattr(log.timestamp, 'timestamp') else time.time()
-                            
                             await websocket.send_json({
                                 "source": ip,
                                 "destination": log.domain,
                                 "timestamp": ts
                             })
             except Exception as e:
-                print(f"[!] Geçmiş trafik çekilirken hata oluştu: {e}")
-            # -------------------------------------------------------------
+                print(f"[!] Geçmiş trafik çekilirken hata: {e}")
 
     try:
         while True:
@@ -214,7 +240,6 @@ async def websocket_endpoint(websocket: WebSocket):
                                 payload = {"type": "ping_result", "ip": ip, "value": val}
                                 asyncio.run_coroutine_threadsafe(ws.send_json(payload), main_event_loop)
                         except: pass
-                    
                     threading.Thread(target=ping_task, args=(target_ip, websocket), daemon=True).start()
             
             elif action == "toggle_kill":
@@ -226,10 +251,8 @@ async def websocket_endpoint(websocket: WebSocket):
     except WebSocketDisconnect:
         manager.disconnect(websocket)
     except Exception as e:
-        print(f"WS Hatası: {e}")
         manager.disconnect(websocket)
 
-# --- YEREL IP BULMA FONKSİYONU ---
 def get_local_ip():
     import socket
     try:
@@ -249,5 +272,4 @@ if __name__ == "__main__":
     print(f"[*] Mobil API: http://{local_ip}:8000")
     print(f"{'-'*50}\n")
     
-    # host="0.0.0.0" telefonun bağlanabilmesi için kritiktir.
-    uvicorn.run(app, host="0.0.0.0", port=8000, log_level="error")
+    uvicorn.run(app, host="0.0.0.0", port=8000, log_level="info")

@@ -36,7 +36,7 @@ services:
       - ./server_linux:/app
     environment:
       - PYTHONUNBUFFERED=1
-      - DATABASE_URL=postgresql://umay_admin:umay_password123@localhost:5433/umay_analytics
+      - DATABASE_URL=postgresql://umay_admin:umay_password123@127.0.0.1:5433/umay_analytics
       - UMAY_ENABLE_DNS=${UMAY_ENABLE_DNS:-false}
       - UMAY_REMOTE_MODE=${UMAY_REMOTE_MODE:-false}
     env_file:

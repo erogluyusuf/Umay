@@ -18,7 +18,6 @@ class _DeviceDetailsPageState extends State<DeviceDetailsPage> with SingleTicker
   @override
   void initState() {
     super.initState();
-    // HIZLANDIRILDI
     _bgController = AnimationController(
       duration: const Duration(seconds: 5),
       vsync: this,
@@ -53,7 +52,7 @@ class _DeviceDetailsPageState extends State<DeviceDetailsPage> with SingleTicker
               gradient: LinearGradient(
                 begin: _topAlignmentAnimation.value,
                 end: _bottomAlignmentAnimation.value,
-                stops: const [0.0, 0.7, 1.0], // BEYAZ SIKIŞTIRILDI
+                stops: const [0.0, 0.7, 1.0],
                 colors: const [
                   Color(0xFF305282),
                   Color(0xFF98AFC7),
@@ -99,7 +98,7 @@ class _DeviceDetailsPageState extends State<DeviceDetailsPage> with SingleTicker
         Container(
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
-            color: Colors.black.withOpacity(0.15), 
+            color: Colors.black.withOpacity(0.15),
             shape: BoxShape.circle,
             border: Border.all(color: Colors.white.withOpacity(0.2)),
           ),
@@ -117,8 +116,8 @@ class _DeviceDetailsPageState extends State<DeviceDetailsPage> with SingleTicker
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
       children: [
-        _glassActionButton(Icons.network_ping, "Ping", Colors.white), 
-        _glassActionButton(Icons.radar, "Port Scan", Colors.white), 
+        _glassActionButton(Icons.network_ping, "Ping", Colors.white),
+        _glassActionButton(Icons.radar, "Port Scan", Colors.white),
         _glassActionButton(Icons.block, "Block", Colors.redAccent),
       ],
     );
