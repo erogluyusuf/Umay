@@ -1,6 +1,9 @@
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request
+import os  # Yeni eklendi
+import subprocess  # Yeni eklendi
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request, HTTPException # HTTPException eklendi
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from pydantic import BaseModel # Yeni eklendi
 import threading
 import asyncio
 import json
@@ -13,6 +16,11 @@ from sniffer import UmaySniffer
 from core.database import init_db, engine
 from sqlmodel import Session, select
 from schemas.db_models import Device, TrafficLog
+
+# --- YENİ: MOBİL KAYIT MODELİ ---
+class RegisterDevice(BaseModel):
+    email: str
+    device_name: str
 
 # FastAPI Uygulaması
 app = FastAPI()
@@ -47,6 +55,39 @@ async def startup_event():
     # 2. Tablolar oluştuktan SONRA Sniffer'ı başlat
     print("[*] Sniffer (Ağ Dinleyici) arka planda başlatılıyor...")
     threading.Thread(target=start_sniffer_background, daemon=True).start()
+
+# --- YENİ: MOBİL KAYIT ENDPOINT'İ (Mevcut yapıya eklendi) ---
+@app.post("/api/v1/register-device")
+async def register_device(data: RegisterDevice):
+    try:
+        # 1. WireGuard Anahtarlarını Üret
+        priv_key = subprocess.getoutput("wg genkey")
+        
+        # 2. vpn_config/templates/peer.conf şablonunu oku
+        template_path = "vpn_config/templates/peer.conf"
+        if not os.path.exists(template_path):
+            raise HTTPException(status_code=500, detail="VPN Şablonu (peer.conf) bulunamadı!")
+
+        with open(template_path, 'r') as f:
+            template_content = f.read()
+
+        # 3. Şablonu doldur
+        client_config = template_content.replace("${PRIVATE_KEY}", priv_key)
+        client_config = client_config.replace("${CLIENT_IP}", "10.0.0.5/32") 
+
+        # 4. Cihazı SQLModel üzerinden veritabanına işle
+        with Session(engine) as session:
+            db_device = Device(
+                name=data.device_name, 
+                mac_address=f"VPN-{data.email[:8]}", # Unique tanımlayıcı
+                is_online=True
+            )
+            session.add(db_device)
+            session.commit()
+
+        return {"status": "success", "config": client_config}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 # --- WEBSOCKET YÖNETİCİSİ ---
 class ConnectionManager:
@@ -188,6 +229,25 @@ async def websocket_endpoint(websocket: WebSocket):
         print(f"WS Hatası: {e}")
         manager.disconnect(websocket)
 
+# --- YEREL IP BULMA FONKSİYONU ---
+def get_local_ip():
+    import socket
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))
+        ip = s.getsockname()[0]
+        s.close()
+        return ip
+    except:
+        return "127.0.0.1"
+
 if __name__ == "__main__":
-    print("[*] Umay Sunucusu 8000 portunda çalışıyor. http://localhost:8000")
+    local_ip = get_local_ip()
+    print(f"\n{'-'*50}")
+    print(f"[*] Umay Sunucusu 8000 portunda çalışıyor.")
+    print(f"[*] Panel: http://localhost:8000")
+    print(f"[*] Mobil API: http://{local_ip}:8000")
+    print(f"{'-'*50}\n")
+    
+    # host="0.0.0.0" telefonun bağlanabilmesi için kritiktir.
     uvicorn.run(app, host="0.0.0.0", port=8000, log_level="error")

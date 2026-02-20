@@ -23,7 +23,34 @@ cleanup() {
 }
 trap cleanup EXIT
 
-echo -e "${GREEN}--- Umay Başlatıcı (v3.0 - Global & SQL Intelligence) ---${NC}"
+# --- AVAHI/mDNS KONTROL VE KURULUM FONKSİYONU ---
+setup_avahi() {
+    echo -e "${YELLOW}[*] Avahi/mDNS servisleri kontrol ediliyor...${NC}"
+    
+    # Avahi yüklü mü? (Fedora/RHEL tabanlı sistemler için dnf kontrolü)
+    if ! command -v avahi-daemon &> /dev/null; then
+        echo -e "${YELLOW}[!] Avahi yüklü değil. Kurulum başlatılıyor...${NC}"
+        dnf install -y avahi avahi-tools > /dev/null 2>&1
+        if [ $? -ne 0 ]; then
+            echo -e "${RED}[HATA] Avahi kurulamadı. Lütfen internetinizi kontrol edin.${NC}"
+        fi
+    fi
+
+    # mDNS ismini ayarla (api.umaysentinel.local olacak)
+    echo -e "${GREEN}[OK] Ağ ismi yapılandırılıyor: api.umaysentinel.local${NC}"
+    hostnamectl set-hostname api.umaysentinel
+
+    # Servisi etkinleştir ve başlat
+    systemctl enable --now avahi-daemon > /dev/null 2>&1
+    
+    # Güvenlik duvarından mDNS trafiğine (Port 5353) izin ver
+    if command -v firewall-cmd &> /dev/null; then
+        firewall-cmd --permanent --add-service=mdns > /dev/null 2>&1
+        firewall-cmd --reload > /dev/null 2>&1
+    fi
+}
+
+echo -e "${GREEN}--- Umay Başlatıcı (v3.1 - Global & SQL & mDNS) ---${NC}"
 
 if [ "$EUID" -ne 0 ]; then
   echo -e "${RED}[HATA] Root yetkisi şart!${NC} (sudo ./baslat.sh)"
@@ -34,7 +61,7 @@ fi
 echo -e "${BLUE}Nasıl başlatmak istersiniz?${NC}"
 echo -e "1) ${GREEN}Sadece İzleme (Passive):${NC} Port 53'e dokunma."
 echo -e "2) ${RED}DNS Sunucusu (Active):${NC} Yerel ağı kendi üzerinden geçir."
-echo -e "3) ${YELLOW}Uzaktan Erişim (Remote):${NC} Erzurum-İstanbul VPN Hattını Kur (Otomatik IP).${NC}"
+echo -e "3) ${YELLOW}Uzaktan Erişim (Remote):${NC} VPN & mDNS (api.umaysentinel.local) Aktif.${NC}"
 read -p "Seçiminiz (1/2/3): " SECIM
 
 # --- DOCKER KOMUTUNU BELİRLE ---
@@ -45,7 +72,7 @@ export UMAY_ENABLE_DNS="false"
 export UMAY_REMOTE_MODE="false"
 PROFILE_ARG="" 
 
-# Eğer 2 veya 3 seçildiyse Port 53 operasyonu başlar
+# Port 53 ve Ağ Operasyonları
 if [ "$SECIM" != "1" ]; then
     echo -e "${YELLOW}[*] Port 53 temizliği yapılıyor...${NC}"
     export UMAY_ENABLE_DNS="true"
@@ -78,8 +105,11 @@ if [ "$SECIM" != "1" ]; then
     if [ "$SECIM" == "3" ]; then
         export UMAY_REMOTE_MODE="true"
         PROFILE_ARG="--profile vpn_aktif" 
-        echo -e "${YELLOW}[*] Dış IP adresi otomatik tespit ediliyor...${NC}"
         
+        # --- AVAHI BURADA TETİKLENİR ---
+        setup_avahi
+        
+        echo -e "${YELLOW}[*] Dış IP adresi otomatik tespit ediliyor...${NC}"
         AUTO_IP=$(curl -s ifconfig.me)
         
         if [ -z "$AUTO_IP" ]; then
@@ -97,16 +127,14 @@ fi
 
 # --- KLASÖR DÜZELTME ---
 if [ -d "server_linux/assets" ] && [ ! -d "server_linux/static/assets" ]; then
-    mv server_linux/assets server_linux/static/
+    mv server_linux/assets server_linux/static/ 2>/dev/null
 fi
 
 # --- 4. AKILLI TARAYICI BAŞLATICISI ---
 echo -e "${BLUE}[INFO] Sistem arka planda ayağa kaldırılıyor. Hazır olduğunda tarayıcı otomatik açılacak...${NC}"
 
 open_browser() {
-    # 8000 portu HTTP 200 (OK) yanıtı verene kadar döngüde bekle
     for i in {1..120}; do
-        # curl komutu ile sunucunun ayakta olup olmadığını kontrol ediyoruz
         if curl -s -f http://localhost:8000 > /dev/null 2>&1; then
             echo -e "\n${GREEN}[+] Sunucu hazır! Tarayıcı açılıyor...${NC}"
             if [ -n "$SUDO_USER" ]; then
@@ -121,12 +149,13 @@ open_browser() {
     done
 }
 
-# Bekleme fonksiyonunu arka planda başlat (Docker komutunu kilitlememesi için)
 open_browser &
 
-# Linki her ihtimale karşı ekrana da yazalım
 echo -e "\n${GREEN}========================================${NC}"
 echo -e "${GREEN}   PANEL ADRESİ: http://localhost:8000  ${NC}"
+if [ "$SECIM" == "3" ]; then
+echo -e "${GREEN}   mDNS API: http://api.umaysentinel.local:8000 ${NC}"
+fi
 echo -e "${GREEN}========================================${NC}\n"
 
 # --- BAŞLAT ---
