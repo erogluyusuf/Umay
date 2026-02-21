@@ -3,6 +3,7 @@ import 'package:google_sign_in/google_sign_in.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:shared_preferences/shared_preferences.dart'; // Hafıza yönetimi için eklendi
 
 import 'dashboard_page.dart';
 
@@ -55,6 +56,14 @@ class _LoginPageState extends State<LoginPage> {
       if (response.statusCode == 200) {
         final responseData = jsonDecode(response.body);
         final String vpnConfigStr = responseData['config'] ?? "";
+
+        // ==========================================
+        // YENİ: GİRİŞ BİLGİLERİNİ TELEFONA KAYDET
+        // ==========================================
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setBool('isLoggedIn', true);
+        await prefs.setString('vpnConfig', vpnConfigStr);
+        // ==========================================
 
         _showSnackBar("Umay Sentinel'e Kayıt Başarılı!", Colors.green);
 

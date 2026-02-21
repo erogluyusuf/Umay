@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'device_details_page.dart';
 
 class DevicesPage extends StatelessWidget {
-  // KRİTİK DÜZELTME: String yerine 'dynamic' kullanıyoruz ki zafiyet listeleri hata vermesin!
   final List<Map<String, dynamic>> devices;
   final Map<String, String> stats;
 
@@ -13,13 +12,46 @@ class DevicesPage extends StatelessWidget {
     required this.stats
   });
 
+  // --- MARKA LOGOSU BULUCU ---
+  String _getBrandLogo(String name) {
+    String lowerName = name.toLowerCase();
+    if (lowerName.contains("apple") || lowerName.contains("iphone") || lowerName.contains("mac") || lowerName.contains("ipad")) return "apple";
+    if (lowerName.contains("samsung") || lowerName.contains("galaxy")) return "samsung";
+    if (lowerName.contains("huawei")) return "huawei";
+    if (lowerName.contains("xiaomi") || lowerName.contains("redmi") || lowerName.contains("poco")) return "xiaomi";
+    if (lowerName.contains("asus")) return "asus";
+    if (lowerName.contains("lenovo")) return "lenovo";
+    if (lowerName.contains("hp") || lowerName.contains("hewlett")) return "hp";
+    if (lowerName.contains("dell")) return "dell";
+    if (lowerName.contains("cisco")) return "cisco";
+    if (lowerName.contains("tp-link") || lowerName.contains("tplink")) return "tp-link";
+    if (lowerName.contains("linux") || lowerName.contains("raspberry")) return "linux";
+    if (lowerName.contains("windows") || lowerName.contains("microsoft") || lowerName.contains("pc")) return "windows";
+    if (lowerName.contains("sony")) return "sony";
+    if (lowerName.contains("lg")) return "lg";
+
+    // Bilinmeyenler için ismin ilk kelimesini deneyelim
+    return lowerName.split(" ").first.replaceAll(RegExp(r'[^a-z0-9]'), '');
+  }
+
+  // --- YEDEK İKON (LOGO YOKSA) ---
+  IconData _getFallbackIcon(String name) {
+    String lowerName = name.toLowerCase();
+    if (lowerName.contains("apple") || lowerName.contains("samsung") || lowerName.contains("phone")) return Icons.smartphone;
+    if (lowerName.contains("tv")) return Icons.tv;
+    if (lowerName.contains("linux") || lowerName.contains("server")) return Icons.dns;
+    if (lowerName.contains("mac") || lowerName.contains("pc") || lowerName.contains("windows")) return Icons.laptop;
+    return Icons.devices_other;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.transparent,
       appBar: AppBar(
         title: const Text(
-            " "
+            "  ",
+            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 20)
         ),
         backgroundColor: Colors.transparent,
         elevation: 0,
@@ -153,13 +185,13 @@ class DevicesPage extends StatelessWidget {
     );
   }
 
-  // KRİTİK DÜZELTME: Map<String, dynamic> kullanıyoruz
   Widget _buildGlassDeviceCard(BuildContext context, Map<String, dynamic> device) {
     final isOnline = device["status"] == "Online";
-
-    // Veriler dynamic geldiği için .toString() ile güvenli bir şekilde metne çeviriyoruz
     final deviceName = device["name"]?.toString() ?? "Unknown";
     final deviceIp = device["ip"]?.toString() ?? "0.0.0.0";
+
+    // Hangi markanın logosunu çağıracağımızı bulalım
+    final brandFile = _getBrandLogo(deviceName);
 
     return GestureDetector(
       onTap: () {
@@ -184,18 +216,29 @@ class DevicesPage extends StatelessWidget {
               child: Row(
                 children: [
                   Container(
-                    padding: const EdgeInsets.all(10),
+                    width: 45,
+                    height: 45,
+                    padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.15),
+                      color: Colors.white.withOpacity(0.10),
                       shape: BoxShape.circle,
                     ),
-                    child: Icon(
-                        deviceName.toLowerCase().contains("apple") ||
-                            deviceName.toLowerCase().contains("samsung")
-                            ? Icons.smartphone
-                            : Icons.devices_other,
-                        color: Colors.white,
-                        size: 20
+                    // YENİ: LOGO YÜKLEME VE YEDEK İKON SİSTEMİ
+                    child: Center(
+                      child: Image.asset(
+                        'assets/brands/$brandFile.png', // Örn: assets/brands/apple.png
+                        width: 26,
+                        height: 26,
+                        fit: BoxFit.contain,
+                        // Eğer o marka png dosyası yoksa beyaz ikon göster!
+                        errorBuilder: (context, error, stackTrace) {
+                          return Icon(
+                            _getFallbackIcon(deviceName),
+                            color: Colors.white,
+                            size: 22,
+                          );
+                        },
+                      ),
                     ),
                   ),
                   const SizedBox(width: 16),

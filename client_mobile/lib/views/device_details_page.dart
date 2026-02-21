@@ -1,4 +1,5 @@
 import 'dart:ui';
+import 'dart:io'; // EKLENDİ: Ping ve Socket işlemleri için
 import 'dart:convert';
 import 'dart:async';
 import 'package:flutter/material.dart';
@@ -25,7 +26,6 @@ class _DeviceDetailsPageState extends State<DeviceDetailsPage> with SingleTicker
   bool _isAutoPinging = false;
   bool _isScanningPorts = false;
 
-  // YENİ: Trafik akışı durumu ve listesi
   bool _isSniffing = false;
   List<Map<String, String>> _trafficLogs = [];
 
@@ -33,10 +33,15 @@ class _DeviceDetailsPageState extends State<DeviceDetailsPage> with SingleTicker
   List<FlSpot> _pingSpots = [];
   double _xCount = 0;
 
+  // Cihazın MAC adresi Android tarafından gizlendiyse (Hidden by OS), Local moddayız demektir.
+  bool get _isLocalMode => widget.device['mac'] == "Hidden by OS";
+
   @override
   void initState() {
     super.initState();
-    _connectToUmayServer();
+    if (!_isLocalMode) {
+      _connectToUmayServer();
+    }
   }
 
   void _connectToUmayServer() {
@@ -72,25 +77,19 @@ class _DeviceDetailsPageState extends State<DeviceDetailsPage> with SingleTicker
           });
         }
 
-        // 3. YENİ: TRAFİK AKIŞI (TRAFFIC FLOW) YAKALAMA
-        // Sunucu kaynak ve hedefi gönderdiğinde bu cihaza aitse listeye ekle
-        if (_isSniffing && data.containsKey('source') && data.containsKey('destination')) {
+        // 3. GERÇEK TRAFİK AKIŞI (Sunucu Modu)
+        if (_isSniffing && !_isLocalMode && data.containsKey('source') && data.containsKey('destination')) {
           if (data['source'] == widget.device['ip'] || data['mac'] == widget.device['mac']) {
             setState(() {
-              // Saati hesapla (Örn: 14:35:12)
               String timeStr = DateTime.now().toLocal().toString().split(' ')[1].substring(0, 8);
-
               _trafficLogs.insert(0, {
                 "time": timeStr,
                 "dest": data['destination'].toString(),
               });
-
-              // Ekranda çok birikip kasmaması için sadece son 15 logu tut
               if (_trafficLogs.length > 15) _trafficLogs.removeLast();
             });
           }
         }
-
       });
     } catch (e) {
       print("WS Connection Error: $e");
@@ -104,8 +103,29 @@ class _DeviceDetailsPageState extends State<DeviceDetailsPage> with SingleTicker
         _pingResult = "Tracking...";
         _pingSpots.clear();
         _xCount = 0;
+
         _pingTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
-          _channel?.sink.add(jsonEncode({"action": "get_ping", "ip": widget.device["ip"]}));
+          if (_isLocalMode) {
+            // Local Modda cihaz üzerinden manuel ping at (Düzeltildi)
+            Process.run('ping', ['-c', '1', '-W', '1', widget.device['ip']]).then((result) {
+              if (result.exitCode == 0 && mounted) {
+                // Ping çıktısından süreyi ayıkla (Örn: time=15.2 ms)
+                final match = RegExp(r'time=([\d.]+)\s*ms').firstMatch(result.stdout.toString());
+                double pingTime = 0.0;
+                if (match != null && match.groupCount >= 1) {
+                  pingTime = double.tryParse(match.group(1)!) ?? 0.0;
+                }
+                setState(() {
+                  _pingResult = "${pingTime.toInt()} ms";
+                  _pingSpots.add(FlSpot(_xCount, pingTime));
+                  _xCount++;
+                  if (_pingSpots.length > 40) _pingSpots.removeAt(0);
+                });
+              }
+            });
+          } else {
+            _channel?.sink.add(jsonEncode({"action": "get_ping", "ip": widget.device["ip"]}));
+          }
         });
       } else {
         _pingTimer?.cancel();
@@ -121,29 +141,54 @@ class _DeviceDetailsPageState extends State<DeviceDetailsPage> with SingleTicker
       _openPorts = null;
     });
 
-    _channel?.sink.add(jsonEncode({"action": "start_scan", "ip": widget.device["ip"]}));
+    if (_isLocalMode) {
+      // Local Mod: Cihaz üzerinden basit bir socket taraması (Düzeltildi)
+      Future(() async {
+        List<int> foundPorts = [];
+        List<int> commonPorts = [21, 22, 23, 25, 53, 80, 110, 135, 139, 143, 443, 445, 3306, 3389, 8000, 8080];
 
-    Future.delayed(const Duration(seconds: 15), () {
-      if (mounted && _isScanningPorts) {
-        setState(() {
-          _isScanningPorts = false;
-          _openPorts = [];
-        });
-      }
-    });
+        for (int port in commonPorts) {
+          try {
+            final socket = await Socket.connect(widget.device['ip'], port, timeout: const Duration(milliseconds: 200));
+            foundPorts.add(port);
+            socket.destroy();
+          } catch (_) {} // Bağlanamazsa hata fırlatır, geçiyoruz.
+        }
+
+        if (mounted) {
+          setState(() {
+            _openPorts = foundPorts;
+            _isScanningPorts = false;
+          });
+        }
+      });
+    } else {
+      _channel?.sink.add(jsonEncode({"action": "start_scan", "ip": widget.device["ip"]}));
+      Future.delayed(const Duration(seconds: 15), () {
+        if (mounted && _isScanningPorts) {
+          setState(() {
+            _isScanningPorts = false;
+            _openPorts = [];
+          });
+        }
+      });
+    }
   }
 
   void _toggleBlock() {
+    if (_isLocalMode) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('KILL switch requires Umay Server connection (Root).'), backgroundColor: Colors.orange));
+      return;
+    }
     setState(() { _isBlocked = !_isBlocked; });
     _channel?.sink.add(jsonEncode({"action": "toggle_kill", "ip": widget.device["ip"], "state": _isBlocked}));
   }
 
-  // YENİ: TRAFİK DİNLEME (FLOW) BUTON TETİKLEYİCİSİ
   void _toggleSniffing() {
     setState(() {
       _isSniffing = !_isSniffing;
       if (!_isSniffing) {
-        _trafficLogs.clear(); // Kapatınca logları temizle
+        _trafficLogs.clear();
       }
     });
   }
@@ -185,7 +230,6 @@ class _DeviceDetailsPageState extends State<DeviceDetailsPage> with SingleTicker
             _buildHeaderStatus(),
             const SizedBox(height: 30),
 
-            // 4 BUTONLU YENİ KONTROL PANELİ
             _buildControlPanel(),
             const SizedBox(height: 30),
 
@@ -196,7 +240,6 @@ class _DeviceDetailsPageState extends State<DeviceDetailsPage> with SingleTicker
             ),
             if (_isAutoPinging) const SizedBox(height: 30),
 
-            // YENİ: TRAFİK AKIŞI (FLOW) BÖLÜMÜ
             AnimatedSize(
               duration: const Duration(milliseconds: 300),
               curve: Curves.easeInOut,
@@ -217,16 +260,16 @@ class _DeviceDetailsPageState extends State<DeviceDetailsPage> with SingleTicker
     );
   }
 
-  // --- YENİ: TRAFİK AKIŞI (FLOW) GÖRSELİ ---
+  // --- TRAFİK AKIŞI (FLOW) EKRANI ---
   Widget _buildTrafficFlowSection() {
     return Container(
       width: double.infinity,
       height: 250,
       padding: const EdgeInsets.all(15),
       decoration: BoxDecoration(
-          color: Colors.black, // Terminal hissi için tam siyah
+          color: Colors.black,
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: Colors.purpleAccent.withOpacity(0.5))
+          border: Border.all(color: _isLocalMode ? Colors.redAccent.withOpacity(0.5) : Colors.purpleAccent.withOpacity(0.5))
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -235,27 +278,53 @@ class _DeviceDetailsPageState extends State<DeviceDetailsPage> with SingleTicker
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Row(
-                children: const [
-                  Icon(Icons.wifi_tethering, color: Colors.purpleAccent, size: 16),
-                  SizedBox(width: 8),
-                  Text("LIVE TRAFFIC INTERCEPT", style: TextStyle(color: Colors.purpleAccent, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1.1)),
+                children: [
+                  Icon(
+                      _isLocalMode ? Icons.gavel : Icons.wifi_tethering,
+                      color: _isLocalMode ? Colors.redAccent : Colors.purpleAccent,
+                      size: 16
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                      _isLocalMode ? "ACCESS DENIED" : "LIVE TRAFFIC INTERCEPT",
+                      style: TextStyle(
+                          color: _isLocalMode ? Colors.redAccent : Colors.purpleAccent,
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 1.1
+                      )
+                  ),
                 ],
               ),
-              const SizedBox(
-                  height: 12, width: 12,
-                  child: CircularProgressIndicator(color: Colors.purpleAccent, strokeWidth: 2)
-              ), // Küçük dönen radar efekti
+              if (!_isLocalMode)
+                const SizedBox(
+                    height: 12, width: 12,
+                    child: CircularProgressIndicator(color: Colors.purpleAccent, strokeWidth: 2)
+                ),
             ],
           ),
           const Divider(color: Colors.white24, height: 20),
           Expanded(
-            child: _trafficLogs.isEmpty
-                ? const Center(child: Text("Listening for packets...", style: TextStyle(color: Colors.white38, fontSize: 12, fontStyle: FontStyle.italic)))
+            child: _isLocalMode
+                ? Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: const [
+                Text("> Listening on interface wlan0...", style: TextStyle(color: Colors.white54, fontSize: 11, fontFamily: 'monospace')),
+                SizedBox(height: 5),
+                Text("[!] FATAL: Operation not permitted", style: TextStyle(color: Colors.redAccent, fontSize: 11, fontFamily: 'monospace', fontWeight: FontWeight.bold)),
+                SizedBox(height: 5),
+                Text("[!] ERROR: Cannot capture packets on a non-root environment.", style: TextStyle(color: Colors.redAccent, fontSize: 11, fontFamily: 'monospace', fontWeight: FontWeight.bold)),
+                SizedBox(height: 15),
+                Text("SUGGESTION: Connect to Umay Node (Server Mode) to intercept network traffic.", style: TextStyle(color: Colors.orangeAccent, fontSize: 11, fontFamily: 'monospace')),
+              ],
+            )
+                : _trafficLogs.isEmpty
+                ? const Center(child: Text("Listening for packets on Port 53...", style: TextStyle(color: Colors.white38, fontSize: 12, fontStyle: FontStyle.italic)))
                 : ListView.builder(
               itemCount: _trafficLogs.length,
               itemBuilder: (context, index) {
                 final log = _trafficLogs[index];
-                // İlk eleman yeni eklendiği için parlak, diğerleri soluk görünür (Matrix Fade efekti)
                 double opacity = 1.0 - (index * 0.06);
                 if (opacity < 0.2) opacity = 0.2;
 
@@ -287,7 +356,6 @@ class _DeviceDetailsPageState extends State<DeviceDetailsPage> with SingleTicker
     );
   }
 
-  // --- ZAFİYET (VULNERABILITY) KISMI ---
   Widget _buildVulnSection(List<dynamic> vulns) {
     bool isSafe = vulns.isEmpty;
 
@@ -304,29 +372,14 @@ class _DeviceDetailsPageState extends State<DeviceDetailsPage> with SingleTicker
         children: [
           Row(
             children: [
-              Icon(
-                  isSafe ? Icons.verified_user : Icons.dangerous,
-                  color: isSafe ? Colors.greenAccent : Colors.redAccent,
-                  size: 18
-              ),
+              Icon(isSafe ? Icons.verified_user : Icons.dangerous, color: isSafe ? Colors.greenAccent : Colors.redAccent, size: 18),
               const SizedBox(width: 8),
-              Text(
-                  isSafe ? "SYSTEM SECURE" : "DANGER: VULNERABILITIES DETECTED",
-                  style: TextStyle(
-                      color: isSafe ? Colors.greenAccent : Colors.redAccent,
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: 1.1
-                  )
-              ),
+              Text(isSafe ? "SYSTEM SECURE" : "DANGER: VULNERABILITIES DETECTED", style: TextStyle(color: isSafe ? Colors.greenAccent : Colors.redAccent, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1.1)),
             ],
           ),
           const SizedBox(height: 15),
           if (isSafe)
-            const Text(
-                "No known vulnerabilities or open exploits detected for this device.",
-                style: TextStyle(color: Colors.white54, fontSize: 11, fontStyle: FontStyle.italic)
-            )
+            const Text("No known vulnerabilities or open exploits detected for this device.", style: TextStyle(color: Colors.white54, fontSize: 11, fontStyle: FontStyle.italic))
           else
             ...vulns.map((vuln) => Padding(
               padding: const EdgeInsets.only(bottom: 8.0),
@@ -343,7 +396,6 @@ class _DeviceDetailsPageState extends State<DeviceDetailsPage> with SingleTicker
     );
   }
 
-  // --- PORT LİSTESİ BÖLÜMÜ ---
   Widget _buildPortSection() {
     return Container(
       width: double.infinity,
@@ -360,17 +412,12 @@ class _DeviceDetailsPageState extends State<DeviceDetailsPage> with SingleTicker
             const Text("ALL SCANNED PORTS ARE CLOSED OR FILTERED.", style: TextStyle(color: Colors.white54, fontSize: 11, fontStyle: FontStyle.italic))
           else if (_openPorts != null)
               Wrap(
-                spacing: 10,
-                runSpacing: 10,
+                spacing: 10, runSpacing: 10,
                 children: _openPorts!.map((p) => GestureDetector(
                   onTap: () => _launchPortUrl(p),
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: Colors.blueAccent.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.blueAccent.withOpacity(0.5)),
-                    ),
+                    decoration: BoxDecoration(color: Colors.blueAccent.withOpacity(0.1), borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.blueAccent.withOpacity(0.5))),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
@@ -393,7 +440,6 @@ class _DeviceDetailsPageState extends State<DeviceDetailsPage> with SingleTicker
       children: [
         _actionBtn(Icons.analytics, "TRACK", _isAutoPinging, _toggleAutoPing, Colors.cyanAccent),
         _actionBtn(Icons.radar, "SCAN", _isScanningPorts, _startPortScan, Colors.orangeAccent),
-        // YENİ BUTON: FLOW
         _actionBtn(Icons.filter_alt, "FLOW", _isSniffing, _toggleSniffing, Colors.purpleAccent),
         _actionBtn(_isBlocked ? Icons.lock_open : Icons.front_hand, "KILL", _isBlocked, _toggleBlock, Colors.redAccent),
       ],

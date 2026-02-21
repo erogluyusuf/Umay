@@ -1,11 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:shared_preferences/shared_preferences.dart'; // Hafıza kontrolü için eklendi
+
 import 'views/login_page.dart';
+import 'views/main_screen.dart'; // Otomatik giriş için eklendi
 
 Future<void> main() async {
+  // 1. Flutter motorunu başlat
   WidgetsFlutterBinding.ensureInitialized();
 
+  // 2. UI ve Ekran Yönü Ayarları
   SystemChrome.setSystemUIOverlayStyle(
     const SystemUiOverlayStyle(
       statusBarColor: Colors.transparent,
@@ -20,6 +25,7 @@ Future<void> main() async {
     DeviceOrientation.portraitDown,
   ]);
 
+  // 3. .env Dosyasını Yükle
   try {
     await dotenv.load(fileName: ".env");
     print("✅ INFO: .env file loaded successfully.");
@@ -27,11 +33,27 @@ Future<void> main() async {
     print("❌ CRITICAL ERROR: .env file not found! Details: $e");
   }
 
-  runApp(const UmayApp());
+  // ==========================================
+  // 4. HAFIZAYI (OTURUM DURUMUNU) KONTROL ET
+  // ==========================================
+  final prefs = await SharedPreferences.getInstance();
+  final bool isLoggedIn = prefs.getBool('isLoggedIn') ?? false;
+  final String vpnConfig = prefs.getString('vpnConfig') ?? "";
+
+  // 5. Uygulamayı başlat ve hafızadan gelen verileri içeri aktar
+  runApp(UmayApp(isLoggedIn: isLoggedIn, vpnConfig: vpnConfig));
 }
 
 class UmayApp extends StatelessWidget {
-  const UmayApp({super.key});
+  final bool isLoggedIn;
+  final String vpnConfig;
+
+  // Parametreleri kurucu (constructor) metoda ekledik
+  const UmayApp({
+    super.key,
+    required this.isLoggedIn,
+    required this.vpnConfig
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -54,7 +76,10 @@ class UmayApp extends StatelessWidget {
           centerTitle: true,
         ),
       ),
-      home: LoginPage(),
+      // ==========================================
+      // KRİTİK NOKTA: GİRİŞ YAPILDIYSA MAIN SCREEN'E, YAPILMADIYSA LOGIN'E
+      // ==========================================
+      home: isLoggedIn ? MainScreen(vpnConfig: vpnConfig) : LoginPage(),
     );
   }
 }

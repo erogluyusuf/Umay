@@ -4,35 +4,44 @@ publish_to: 'none'
 version: 1.0.0+1
 
 environment:
-  sdk: '>=3.1.0 <4.0.0' # Fedora'daki Flutter sürümünle uyumlu olması için
+  sdk: '>=3.1.0 <4.0.0'
 
 dependencies:
   flutter:
     sdk: flutter
   cupertino_icons: ^1.0.8
-  
+
   # --- Eklediğimiz Paketler ---
-  http: ^1.6.0              # Backend API ile konuşmak için
-  fl_chart: ^1.1.1         # Ağ trafiği grafikleri (Dashboard için)
-  provider: ^6.0.5          # Uygulama içindeki veriyi yönetmek (State Management)
-  google_fonts: ^6.1.0      # Daha profesyonel bir tipografi için
-  percent_indicator: ^4.2.3 # Tarama durumunu vs. göstermek için
+  http: ^1.6.0
+  fl_chart: ^1.1.1
+  provider: ^6.0.5
+  google_fonts: ^6.1.0
+  percent_indicator: ^4.2.3
   google_sign_in: 6.2.1
   flutter_dotenv: ^6.0.0
   wireguard_flutter: ^0.0.1
   web_socket_channel: ^3.0.3
   url_launcher: ^6.3.2
+  shared_preferences: ^2.5.4
   # ---------------------------
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^3.0.0
+  # Logo oluşturucu paket buraya eklendi
+  flutter_launcher_icons: ^0.13.1
+
+# İkon Ayarları
+flutter_launcher_icons:
+  android: "launcher_icon"
+  ios: true
+  image_path: "assets/logo/logo.png" # Logo adını buna göre ayarladım
+  min_sdk_android: 21
 
 flutter:
   uses-material-design: true
 
-  # Asset tanımlamaları burada başlar
   assets:
-    - assets/brands/  # Marka ikonlarını buraya toplu olarak ekledik
+    - assets/brands/
     - .env
