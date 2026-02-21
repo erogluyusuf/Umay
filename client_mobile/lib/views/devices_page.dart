@@ -3,21 +3,24 @@ import 'package:flutter/material.dart';
 import 'device_details_page.dart';
 
 class DevicesPage extends StatelessWidget {
-  const DevicesPage({super.key});
+  // KRİTİK DÜZELTME: String yerine 'dynamic' kullanıyoruz ki zafiyet listeleri hata vermesin!
+  final List<Map<String, dynamic>> devices;
+  final Map<String, String> stats;
+
+  const DevicesPage({
+    super.key,
+    required this.devices,
+    required this.stats
+  });
 
   @override
   Widget build(BuildContext context) {
-    final List<Map<String, String>> devices = [
-      {"name": "Galaxy A55", "ip": "192.168.1.15", "mac": "2A:4B:6C:8D:1E:3F", "status": "Online"},
-      {"name": "Raspberry Pi ARK", "ip": "192.168.1.20", "mac": "B8:27:EB:CC:DD:22", "status": "Online"},
-      {"name": "Main Router", "ip": "192.168.1.1", "mac": "00:14:22:01:23:45", "status": "Online"},
-      {"name": "Unknown Laptop", "ip": "192.168.1.45", "mac": "F4:0F:24:1A:2B:3C", "status": "Offline"},
-    ];
-
     return Scaffold(
       backgroundColor: Colors.transparent,
       appBar: AppBar(
-        title: const Text("Network Status", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 20)),
+        title: const Text(
+            " "
+        ),
         backgroundColor: Colors.transparent,
         elevation: 0,
         centerTitle: true,
@@ -28,13 +31,43 @@ class DevicesPage extends StatelessWidget {
           _buildNetworkInfoCards(),
           const SizedBox(height: 10),
 
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-            child: Text("Active Devices", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                    "Active Devices",
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                  decoration: BoxDecoration(
+                      color: Colors.blueAccent.withOpacity(0.3),
+                      borderRadius: BorderRadius.circular(12)
+                  ),
+                  child: Text(
+                      "${devices.length} Devices",
+                      style: const TextStyle(color: Colors.cyanAccent, fontWeight: FontWeight.bold)
+                  ),
+                )
+              ],
+            ),
           ),
 
           Expanded(
-            child: ListView.builder(
+            child: devices.isEmpty
+                ? const Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  CircularProgressIndicator(color: Colors.cyanAccent),
+                  SizedBox(height: 20),
+                  Text("Scanning network...", style: TextStyle(color: Colors.grey)),
+                ],
+              ),
+            )
+                : ListView.builder(
               padding: const EdgeInsets.only(left: 20, right: 20, bottom: 120),
               itemCount: devices.length,
               itemBuilder: (context, index) {
@@ -53,9 +86,21 @@ class DevicesPage extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 5),
       child: Row(
         children: [
-          _buildGlassInfoCard(icon: Icons.domain, title: "ISP", value: "Turk Telekomunikasyon\nAnonim Sirketi"),
-          _buildGlassInfoCard(icon: Icons.location_on_outlined, title: "Location", value: "Kosekoy, Turkey"),
-          _buildGlassInfoCard(icon: Icons.language, title: "Public IP", value: "95.10.206.137"),
+          _buildGlassInfoCard(
+              icon: Icons.domain,
+              title: "ISP",
+              value: stats["isp"] ?? "Scanning..."
+          ),
+          _buildGlassInfoCard(
+              icon: Icons.location_on_outlined,
+              title: "Location",
+              value: stats["loc"] ?? "Waiting..."
+          ),
+          _buildGlassInfoCard(
+              icon: Icons.language,
+              title: "Public IP",
+              value: stats["ip"] ?? "0.0.0.0"
+          ),
         ],
       ),
     );
@@ -84,7 +129,13 @@ class DevicesPage extends StatelessWidget {
                   children: [
                     Icon(icon, color: Colors.white, size: 20),
                     const SizedBox(width: 8),
-                    Text(title, style: TextStyle(color: Colors.white.withOpacity(0.8), fontSize: 13, fontWeight: FontWeight.w500)),
+                    Expanded(
+                      child: Text(
+                        title,
+                        style: TextStyle(color: Colors.white.withOpacity(0.8), fontSize: 13, fontWeight: FontWeight.w500),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
                   ],
                 ),
                 const Spacer(),
@@ -102,12 +153,20 @@ class DevicesPage extends StatelessWidget {
     );
   }
 
-  Widget _buildGlassDeviceCard(BuildContext context, Map<String, String> device) {
+  // KRİTİK DÜZELTME: Map<String, dynamic> kullanıyoruz
+  Widget _buildGlassDeviceCard(BuildContext context, Map<String, dynamic> device) {
     final isOnline = device["status"] == "Online";
+
+    // Veriler dynamic geldiği için .toString() ile güvenli bir şekilde metne çeviriyoruz
+    final deviceName = device["name"]?.toString() ?? "Unknown";
+    final deviceIp = device["ip"]?.toString() ?? "0.0.0.0";
 
     return GestureDetector(
       onTap: () {
-        Navigator.push(context, MaterialPageRoute(builder: (context) => DeviceDetailsPage(device: device)));
+        Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => DeviceDetailsPage(device: device))
+        );
       },
       child: Container(
         margin: const EdgeInsets.only(bottom: 12),
@@ -130,16 +189,28 @@ class DevicesPage extends StatelessWidget {
                       color: Colors.white.withOpacity(0.15),
                       shape: BoxShape.circle,
                     ),
-                    child: Icon(isOnline ? Icons.smartphone : Icons.devices_other, color: Colors.white, size: 20),
+                    child: Icon(
+                        deviceName.toLowerCase().contains("apple") ||
+                            deviceName.toLowerCase().contains("samsung")
+                            ? Icons.smartphone
+                            : Icons.devices_other,
+                        color: Colors.white,
+                        size: 20
+                    ),
                   ),
                   const SizedBox(width: 16),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(device["name"]!, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.white)),
+                        Text(
+                          deviceName,
+                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.white),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
                         const SizedBox(height: 4),
-                        Text(device["ip"]!, style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 13)),
+                        Text(deviceIp, style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 13)),
                       ],
                     ),
                   ),
@@ -150,7 +221,10 @@ class DevicesPage extends StatelessWidget {
                       color: isOnline ? const Color(0xFF34C759) : Colors.redAccent,
                       shape: BoxShape.circle,
                       boxShadow: [
-                        BoxShadow(color: isOnline ? const Color(0xFF34C759).withOpacity(0.5) : Colors.redAccent.withOpacity(0.5), blurRadius: 8),
+                        BoxShadow(
+                            color: isOnline ? const Color(0xFF34C759).withOpacity(0.5) : Colors.redAccent.withOpacity(0.5),
+                            blurRadius: 8
+                        ),
                       ],
                     ),
                   ),

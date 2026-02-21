@@ -1,9 +1,14 @@
+import 'dart:ui';
+import 'dart:io';
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:web_socket_channel/web_socket_channel.dart';
+import 'package:http/http.dart' as http;
 import 'devices_page.dart';
 import 'topology_page.dart';
 
 class MainScreen extends StatefulWidget {
-  // YENİ: VPN Config'i burası devraldı
   final String vpnConfig;
 
   const MainScreen({super.key, required this.vpnConfig});
@@ -14,44 +19,222 @@ class MainScreen extends StatefulWidget {
 
 class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateMixin {
   int _currentIndex = 0;
+  WebSocketChannel? _channel;
+
+  // --- MOD ANAHTARI ---
+  // false = Fedora Sunucusu (Umay Node) | true = Telefonun Kendi Wi-Fi'ı (Local Radar)
+  bool _isLocalMode = false;
+
+  // --- CENTRAL DATA STORAGE ---
+  // DİKKAT: Veriler sayfalara aktarılırken hata olmaması için 'dynamic' kullanıyoruz.
+  Map<String, Map<String, dynamic>> discoveredDevices = {};
+  Map<String, String> networkStats = {
+    "isp": "Scanning...",
+    "ip": "0.0.0.0",
+    "loc": "Waiting..."
+  };
 
   late AnimationController _bgController;
   late Animation<Alignment> _topAlignmentAnimation;
   late Animation<Alignment> _bottomAlignmentAnimation;
 
-  final List<Widget> _pages = [
-    const DevicesPage(),
-    const TopologyPage(),
-  ];
-
   @override
   void initState() {
     super.initState();
+
     _bgController = AnimationController(
       duration: const Duration(seconds: 5),
       vsync: this,
     )..repeat(reverse: true);
 
-    _topAlignmentAnimation = Tween<Alignment>(
-      begin: Alignment.topLeft,
-      end: Alignment.topRight,
-    ).animate(_bgController);
+    _topAlignmentAnimation = Tween<Alignment>(begin: Alignment.topLeft, end: Alignment.topRight).animate(_bgController);
+    _bottomAlignmentAnimation = Tween<Alignment>(begin: Alignment.bottomRight, end: Alignment.bottomLeft).animate(_bgController);
 
-    _bottomAlignmentAnimation = Tween<Alignment>(
-      begin: Alignment.bottomRight,
-      end: Alignment.bottomLeft,
-    ).animate(_bgController);
+    // Uygulama ilk açıldığında Sunucu (Remote) modunda başlar
+    _initWebSocket();
+  }
+
+  // ==========================================
+  // 1. UMAY SUNUCU (REMOTE) MODU
+  // ==========================================
+  void _initWebSocket() {
+    final String? baseUrl = dotenv.env['SENTINEL_API_URL'];
+    if (baseUrl == null) return;
+
+    String cleanUrl = baseUrl.trim();
+    if (cleanUrl.endsWith('/')) cleanUrl = cleanUrl.substring(0, cleanUrl.length - 1);
+    final String wsUrl = cleanUrl.replaceFirst("http://", "ws://").replaceFirst("https://", "wss://") + "/ws/traffic";
+
+    try {
+      _channel = WebSocketChannel.connect(Uri.parse(wsUrl));
+
+      _channel!.stream.listen((message) {
+        if (_isLocalMode) return; // Eğer Local moddaysak sunucudan gelenleri görmezden gel
+
+        final data = jsonDecode(message);
+        setState(() {
+          if (data['type'] == 'network_info') {
+            networkStats = {
+              "isp": data['data']['isp'] ?? "Unknown ISP",
+              "ip": data['data']['public_ip'] ?? "0.0.0.0",
+              "loc": "${data['data']['city'] ?? ''}, ${data['data']['country'] ?? ''}"
+            };
+          } else if (data.containsKey('mac') && data['mac'] != null) {
+            String mac = data['mac'];
+            String name = data['hostname']?.toString() != "null" && data['hostname'] != ""
+                ? data['hostname'] : (data['vendor'] ?? "Unknown Device");
+
+            discoveredDevices[mac] = {
+              "name": name,
+              "ip": data['source'] ?? "0.0.0.0",
+              "mac": mac,
+              "status": "Online",
+              "vulns": data['vulns'] ?? [] // Zafiyet listesi varsa ekle
+            };
+          }
+        });
+      }, onError: (err) => print("WS Error: $err"));
+    } catch (e) {
+      print("WS Connect Failed: $e");
+    }
+  }
+
+  // ==========================================
+  // 2. YEREL RADAR (LOCAL) MODU & İSTİHBARAT
+  // ==========================================
+  Future<void> _startLocalScan() async {
+    // 1. Telefonun kendi IP'sini bul
+    String? localIp;
+    try {
+      for (var interface in await NetworkInterface.list()) {
+        for (var addr in interface.addresses) {
+          if (addr.type == InternetAddressType.IPv4 && !addr.isLoopback) {
+            if (addr.address.startsWith('192.168.') || addr.address.startsWith('10.')) {
+              localIp = addr.address;
+            }
+          }
+        }
+      }
+    } catch (e) {
+      print("IP Error: $e");
+    }
+
+    if (localIp == null) {
+      setState(() => networkStats["isp"] = "No Wi-Fi Connection");
+      return;
+    }
+
+    setState(() {
+      networkStats = {
+        "isp": "Local Radar Active",
+        "ip": localIp!,
+        "loc": "On-the-go Mode"
+      };
+    });
+
+    // 2. Subnet'i hesapla
+    String subnet = localIp.substring(0, localIp.lastIndexOf('.'));
+    List<String> foundIps = []; // Karargaha yollanacak IP listesi
+
+    // 3. Ağdaki tüm 254 cihaza ping at
+    for (int i = 1; i < 255; i++) {
+      if (!_isLocalMode) break;
+
+      String targetIp = '$subnet.$i';
+
+      Process.run('ping', ['-c', '1', '-W', '1', targetIp]).then((ProcessResult result) {
+        if (result.exitCode == 0) {
+          foundIps.add(targetIp); // Bulunan IP'yi listeye ekle
+
+          if (mounted && _isLocalMode) {
+            setState(() {
+              discoveredDevices[targetIp] = {
+                "name": targetIp == localIp ? "My Phone" : "Local Target",
+                "ip": targetIp,
+                "mac": "Hidden by OS",
+                "status": "Online",
+                "vulns": [] // Yerel taramada henüz vuln bilinmiyor
+              };
+            });
+          }
+        }
+      });
+
+      // Taramayı boğmamak için es ver
+      await Future.delayed(const Duration(milliseconds: 5));
+    }
+
+    // 4. TARAMA BİTİNCE SUNUCUYA (KARARGAHA) RAPORLA
+    Future.delayed(const Duration(seconds: 3), () async {
+      if (foundIps.isNotEmpty && _isLocalMode) {
+        final String? baseUrl = dotenv.env['SENTINEL_API_URL'];
+        if (baseUrl != null) {
+          try {
+            print("🚀 İstihbarat Sunucuya Gönderiliyor... Toplam: ${foundIps.length}");
+            await http.post(
+              Uri.parse('$baseUrl/api/v1/radar-intel'),
+              headers: {"Content-Type": "application/json"},
+              body: jsonEncode({
+                "agent_ip": localIp,
+                "discovered_ips": foundIps
+              }),
+            );
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                      content: Text("Field intel successfully sent to Headquarters!"),
+                      backgroundColor: Colors.green
+                  )
+              );
+            }
+          } catch (e) {
+            print("❌ İstihbarat gönderilemedi: $e");
+          }
+        }
+      }
+    });
+  }
+
+  // ==========================================
+  // MOD DEĞİŞTİRİCİ TETİK (TOGGLE)
+  // ==========================================
+  void _toggleMode() {
+    setState(() {
+      _isLocalMode = !_isLocalMode;
+      discoveredDevices.clear();
+      networkStats = {
+        "isp": _isLocalMode ? "Starting Radar..." : "Connecting to Umay...",
+        "ip": "0.0.0.0",
+        "loc": "Waiting..."
+      };
+    });
+
+    if (_isLocalMode) {
+      _channel?.sink.close();
+      _startLocalScan();
+    } else {
+      _initWebSocket();
+    }
   }
 
   @override
   void dispose() {
     _bgController.dispose();
+    _channel?.sink.close();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     final barWidth = MediaQuery.of(context).size.width * 0.90;
+
+    // Type casting hatasını önlemek için doğrudan liste olarak aktarıyoruz
+    final deviceList = discoveredDevices.values.toList();
+
+    final List<Widget> pages = [
+      DevicesPage(devices: deviceList, stats: networkStats),
+      TopologyPage(devices: deviceList),
+    ];
 
     return Scaffold(
       body: AnimatedBuilder(
@@ -75,9 +258,48 @@ class _MainScreenState extends State<MainScreen> with SingleTickerProviderStateM
                 children: [
                   AnimatedSwitcher(
                     duration: const Duration(milliseconds: 400),
-                    child: _pages[_currentIndex],
+                    child: pages[_currentIndex],
                   ),
 
+                  // SAĞ ÜST KÖŞEDEKİ MOD DEĞİŞTİRİCİ BUTON
+                  Positioned(
+                    top: 10,
+                    right: 15,
+                    child: GestureDetector(
+                      onTap: _toggleMode,
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(30),
+                        child: BackdropFilter(
+                          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 300),
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                            decoration: BoxDecoration(
+                                color: _isLocalMode ? Colors.orangeAccent.withOpacity(0.2) : Colors.blueAccent.withOpacity(0.2),
+                                borderRadius: BorderRadius.circular(30),
+                                border: Border.all(color: _isLocalMode ? Colors.orangeAccent : Colors.blueAccent, width: 1.5),
+                                boxShadow: [
+                                  BoxShadow(color: _isLocalMode ? Colors.orangeAccent.withOpacity(0.2) : Colors.transparent, blurRadius: 10)
+                                ]
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(_isLocalMode ? Icons.radar : Icons.dns, color: _isLocalMode ? Colors.orangeAccent : Colors.white, size: 18),
+                                const SizedBox(width: 8),
+                                Text(
+                                    _isLocalMode ? "LOCAL RADAR" : "UMAY SERVER",
+                                    style: TextStyle(color: _isLocalMode ? Colors.orangeAccent : Colors.white, fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 1.1)
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+
+                  // Navigasyon Barı
                   Align(
                     alignment: Alignment.bottomCenter,
                     child: Padding(

@@ -11,6 +11,7 @@ import json
 import uvicorn
 import logging
 import time
+import socket # Port taraması için eklendi
 from contextlib import asynccontextmanager # Startup hatasını çözen yeni kütüphane
 from sniffer import UmaySniffer
 
@@ -19,10 +20,14 @@ from core.database import init_db, engine
 from sqlmodel import Session, select
 from schemas.db_models import Device, TrafficLog
 
-# --- MOBİL KAYIT MODELİ ---
+# --- Pydantic Modelleri ---
 class RegisterDevice(BaseModel):
     email: str
     device_name: str
+
+class RadarIntel(BaseModel):
+    agent_ip: str
+    discovered_ips: list[str]
 
 # Global Değişkenler
 global_sniffer = None
@@ -96,17 +101,16 @@ PersistentKeepalive = 25
             client_config = client_config.replace("${CLIENT_IP}", "10.13.13.5/32") 
             print("[+] VPN Şablonu başarıyla dolduruldu.")
 
-        # 3. Cihazı SQLModel üzerinden veritabanına işle (TÜM HATALAR TEMİZLENDİ)
+        # 3. Cihazı SQLModel üzerinden veritabanına işle
         print("[*] Veritabanı kontrol ediliyor...")
         with Session(engine) as session:
             mac_id = f"VPN-{data.email[:8]}"
             
-            # Cihaz zaten var mı kontrol et
             existing_device = session.exec(select(Device).where(Device.mac_address == mac_id)).first()
             
             if existing_device:
                 print(f"[+] Cihaz zaten kayıtlı! (ID: {existing_device.id}). Güncelleniyor...")
-                existing_device.device_name = data.device_name # Sadece ismi güncelliyoruz
+                existing_device.device_name = data.device_name
                 session.add(existing_device)
             else:
                 print("[*] Yeni cihaz bulunamadı, sisteme ekleniyor...")
@@ -133,6 +137,37 @@ PersistentKeepalive = 25
         print("!"*50 + "\n")
         raise HTTPException(status_code=500, detail=str(e))
 
+# --- YENİ EKLENEN: LOCAL RADAR İSTİHBARAT KABUL NOKTASI ---
+@app.post("/api/v1/radar-intel")
+async def receive_radar_intel(data: RadarIntel):
+    print(f"\n[+] SAHA AJANINDAN İSTİHBARAT GELDİ!")
+    print(f"[*] Ajan IP: {data.agent_ip}")
+    print(f"[*] Bulunan Cihazlar: {len(data.discovered_ips)} adet IP")
+    
+    try:
+        with Session(engine) as session:
+            for ip in data.discovered_ips:
+                # Android MAC adreslerini gizlediği için geçici bir MAC üretiyoruz
+                dummy_mac = f"RADAR-{ip.replace('.', '-')}"
+                
+                # Bu IP daha önce bu ağda bulunmuş mu kontrol et
+                existing = session.exec(select(Device).where(Device.mac_address == dummy_mac)).first()
+                if not existing:
+                    new_device = Device(
+                        node_id=1,
+                        device_name=f"Field Target ({ip})",
+                        mac_address=dummy_mac,
+                        brand="Unknown (Radar)",
+                        is_managed=False
+                    )
+                    session.add(new_device)
+            session.commit()
+            
+        print("[+] Saha istihbaratı veritabanına başarıyla kaydedildi!\n")
+        return {"status": "intel_received", "count": len(data.discovered_ips)}
+    except Exception as e:
+        print(f"[-] İstihbarat kaydedilirken hata oluştu: {str(e)}")
+        raise HTTPException(status_code=500, detail="Database Error")
 
 # --- WEBSOCKET YÖNETİCİSİ ---
 class ConnectionManager:
@@ -226,9 +261,39 @@ async def websocket_endpoint(websocket: WebSocket):
             msg = json.loads(data)
             action = msg.get("action")
             
+            # YENİ EKLENEN GERÇEK PORT TARAMA FONKSİYONU
             if action == "start_scan":
-                if global_sniffer:
-                    threading.Thread(target=global_sniffer.fast_sweep, daemon=True).start()
+                target_ip = msg.get("ip")
+                if target_ip:
+                    print(f"[*] Port taraması başlatıldı: {target_ip}")
+                    def scan_task(ip, ws):
+                        try:
+                            open_ports = []
+                            # En çok kullanılan kritik portlar
+                            common_ports = [21, 22, 23, 25, 53, 80, 110, 135, 139, 143, 443, 445, 993, 995, 1723, 3306, 3389, 5900, 8000, 8080, 8443]
+                            
+                            for port in common_ports:
+                                sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                                sock.settimeout(0.2) # Hızlı tarama için 0.2 saniye bekleme süresi
+                                result = sock.connect_ex((ip, port))
+                                if result == 0:
+                                    open_ports.append(port)
+                                sock.close()
+                            
+                            print(f"[+] Tarama Bitti {ip} -> Açık Portlar: {open_ports}")
+                            # Sonucu Flutter'a Geri Gönder
+                            if main_event_loop:
+                                payload = {
+                                    "type": "scan_result", 
+                                    "ip": ip, 
+                                    "ports": open_ports
+                                }
+                                asyncio.run_coroutine_threadsafe(ws.send_json(payload), main_event_loop)
+                        except Exception as e:
+                            print(f"[-] Tarama hatası: {e}")
+                            
+                    # Taramayı arka planda başlat ki sunucu kilitlenmesin
+                    threading.Thread(target=scan_task, args=(target_ip, websocket), daemon=True).start()
             
             elif action == "get_ping":
                 target_ip = msg.get("ip")

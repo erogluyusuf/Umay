@@ -22,9 +22,9 @@ Future<void> main() async {
 
   try {
     await dotenv.load(fileName: ".env");
-    print("✅ BİLGİ: .env dosyası başarıyla yüklendi.");
+    print("✅ INFO: .env file loaded successfully.");
   } catch (e) {
-    print("❌ KRİTİK HATA: .env dosyası bulunamadı! Detay: $e");
+    print("❌ CRITICAL ERROR: .env file not found! Details: $e");
   }
 
   runApp(const UmayApp());

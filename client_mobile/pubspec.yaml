@@ -13,13 +13,15 @@ dependencies:
   
   # --- Eklediğimiz Paketler ---
   http: ^1.6.0              # Backend API ile konuşmak için
-  fl_chart: ^0.63.0         # Ağ trafiği grafikleri (Dashboard için)
+  fl_chart: ^1.1.1         # Ağ trafiği grafikleri (Dashboard için)
   provider: ^6.0.5          # Uygulama içindeki veriyi yönetmek (State Management)
   google_fonts: ^6.1.0      # Daha profesyonel bir tipografi için
   percent_indicator: ^4.2.3 # Tarama durumunu vs. göstermek için
   google_sign_in: 6.2.1
   flutter_dotenv: ^6.0.0
   wireguard_flutter: ^0.0.1
+  web_socket_channel: ^3.0.3
+  url_launcher: ^6.3.2
   # ---------------------------
 
 dev_dependencies:
