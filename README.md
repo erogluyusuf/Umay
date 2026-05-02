@@ -1,7 +1,8 @@
 <div align="center">
   <img src="docs/gif/umay.png" alt="Umay Logo" width="200"/>
   <h1>Umay Sentinel</h1>
-  <p><b>Advanced Network Security, Traffic Analysis & Spatial Visualization System</b></p>
+  <p><b>Advanced Network Security, Traffic Analysis & Spatial Visualization System</b></p> 
+
 
   [![Project Status](https://img.shields.io/badge/Status-Active_Development-brightgreen)](https://github.com/erogluyusuf/Umay)
   [![Platform](https://img.shields.io/badge/Platform-Linux%20%2F%20Android-lightgrey)](#)
