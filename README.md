@@ -10,7 +10,7 @@
   [![License](https://img.shields.io/badge/License-MIT-blue)](LICENSE)
   <br>
   ![Python](https://img.shields.io/badge/Backend-Python%20FastAPI%20%7C%20Scapy-green)
-  ![Flutter](https://img.shields.io/badge/Frontend-Flutter-blue)
+  ![Flutter](https://img.shields.io/badge/Frontend-Flutter-blue) 
   ![Docker](https://img.shields.io/badge/Deployment-Docker-2496ED?logo=docker&logoColor=white)
 </div>
 
