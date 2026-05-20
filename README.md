@@ -1,4 +1,4 @@
- <div align="center">
+  <div align="center">
   <img src="docs/gif/umay.png" alt="Umay Logo" width="200"/>
   <h1>Umay Sentinel</h1>
   <p><b>Advanced Network Security, Traffic Analysis & Spatial Visualization System</b></p> 
