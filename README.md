@@ -8,7 +8,7 @@
   [![Platform](https://img.shields.io/badge/Platform-Linux%20%2F%20Android-lightgrey)](#)
   [![Download APK](https://img.shields.io/github/v/release/erogluyusuf/Umay?label=Download%20APK&color=ff69b4)](https://github.com/erogluyusuf/Umay/releases/latest)
   [![License](https://img.shields.io/badge/License-MIT-blue)](LICENSE)
-  <br>
+  <br> 
   ![Python](https://img.shields.io/badge/Backend-Python%20FastAPI%20%7C%20Scapy-green)
   ![Flutter](https://img.shields.io/badge/Frontend-Flutter-blue) 
   ![Docker](https://img.shields.io/badge/Deployment-Docker-2496ED?logo=docker&logoColor=white)
